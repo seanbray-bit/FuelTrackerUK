@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Fuel Tracker UK needs your location to find the cheapest fuel stations near you.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Fuel Tracker UK uses your location to find the cheapest fuel near you and alert you to price drops.</string>
+</dict>
+</plist>
