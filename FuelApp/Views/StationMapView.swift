@@ -8,6 +8,7 @@ struct StationMapView: View {
 
     @State private var selectedStation: FuelStation?
     @State private var showPaywall = false
+    @State private var showCalculator = false
     @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
 
     var body: some View {
@@ -55,11 +56,21 @@ struct StationMapView: View {
                 .padding(.top, 8)
             }
             .navigationTitle("Map")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCalculator = true
+                    } label: {
+                        Image(systemName: "sterlingsign.circle")
+                    }
+                }
+            }
             .sheet(item: $selectedStation) { station in
                 NavigationStack {
                     StationDetailView(
                         station: station,
-                        userLocation: locationManager.userLocation
+                        userLocation: locationManager.userLocation,
+                        fillLitres: viewModel.fillLitres
                     )
                     .toolbar {
                         ToolbarItem(placement: .topBarTrailing) {
@@ -70,6 +81,9 @@ struct StationMapView: View {
                     }
                 }
                 .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showCalculator) {
+                FillUpCalculatorView(viewModel: viewModel)
             }
         }
     }

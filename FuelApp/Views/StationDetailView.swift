@@ -5,6 +5,7 @@ import CoreLocation
 struct StationDetailView: View {
     let station: FuelStation
     let userLocation: CLLocation?
+    var fillLitres: Double = FuelViewModel.defaultFillLitres
 
     var body: some View {
         ScrollView {
@@ -53,7 +54,7 @@ struct StationDetailView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(price.fuelType.rawValue)
                                 .font(.system(size: 16, weight: .medium))
-                            Text("per litre")
+                            Text("\(price.totalCost(forLitres: fillLitres).gbpFormatted) to fill \(Int(fillLitres))L")
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                         }

@@ -6,6 +6,7 @@ struct StationRowView: View {
     let fuelType: FuelType
     let userLocation: CLLocation?
     let rank: Int
+    var fillLitres: Double = FuelViewModel.defaultFillLitres
 
     var body: some View {
         HStack(spacing: 12) {
@@ -53,6 +54,10 @@ struct StationRowView: View {
                             .font(.system(size: 11))
                             .foregroundColor(price.inStock ? .green : .red)
                     }
+
+                    Text("\(price.totalCost(forLitres: fillLitres).gbpFormatted) to fill \(Int(fillLitres))L")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
                 } else {
                     Text("N/A")
                         .font(.system(size: 18, weight: .medium))
