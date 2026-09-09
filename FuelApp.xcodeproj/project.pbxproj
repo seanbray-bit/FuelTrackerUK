@@ -16,6 +16,7 @@
 		A10007 /* StationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10007 /* StationDetailView.swift */; };
 		A10008 /* StationMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10008 /* StationMapView.swift */; };
 		A10009 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10009 /* PaywallView.swift */; };
+		A10015 /* FillUpCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10016 /* FillUpCalculatorView.swift */; };
 		A10010 /* FuelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10010 /* FuelViewModel.swift */; };
 		A10011 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10011 /* LocationManager.swift */; };
 		A10012 /* FuelAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10012 /* FuelAPIService.swift */; };
@@ -33,6 +34,7 @@
 		B10007 /* StationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StationDetailView.swift; sourceTree = "<group>"; };
 		B10008 /* StationMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StationMapView.swift; sourceTree = "<group>"; };
 		B10009 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		B10016 /* FillUpCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillUpCalculatorView.swift; sourceTree = "<group>"; };
 		B10010 /* FuelViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelViewModel.swift; sourceTree = "<group>"; };
 		B10011 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
 		B10012 /* FuelAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelAPIService.swift; sourceTree = "<group>"; };
@@ -93,6 +95,7 @@
 				B10007 /* StationDetailView.swift */,
 				B10008 /* StationMapView.swift */,
 				B10009 /* PaywallView.swift */,
+				B10016 /* FillUpCalculatorView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -201,6 +204,7 @@
 				A10007 /* StationDetailView.swift in Sources */,
 				A10008 /* StationMapView.swift in Sources */,
 				A10009 /* PaywallView.swift in Sources */,
+				A10015 /* FillUpCalculatorView.swift in Sources */,
 				A10010 /* FuelViewModel.swift in Sources */,
 				A10011 /* LocationManager.swift in Sources */,
 				A10012 /* FuelAPIService.swift in Sources */,

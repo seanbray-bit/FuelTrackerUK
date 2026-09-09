@@ -6,6 +6,7 @@ struct StationListView: View {
     @ObservedObject var subscriptionManager: SubscriptionManager
 
     @State private var showPaywall = false
+    @State private var showCalculator = false
 
     var body: some View {
         NavigationStack {
@@ -43,6 +44,39 @@ struct StationListView: View {
                     .padding(.vertical, 6)
                     .background(Color(.systemGray6))
                 }
+
+                // Fill-up cost bar (opens the calculator)
+                Button {
+                    showCalculator = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "fuelpump.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.green)
+                        Text("Fill \(Int(viewModel.fillLitres))L")
+                            .font(.system(size: 13, weight: .semibold))
+                        if let cheapest = viewModel.cheapestFillCost {
+                            Text("from \(cheapest.gbpFormatted)")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        if let savings = viewModel.savingsVsAverage, savings > 0 {
+                            Text("save \(savings.gbpFormatted)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.green)
+                        }
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
 
                 // Station list
                 if viewModel.isLoading && viewModel.stations.isEmpty {
@@ -103,7 +137,8 @@ struct StationListView: View {
                                             station: station,
                                             fuelType: viewModel.selectedFuelType,
                                             userLocation: locationManager.userLocation,
-                                            rank: rank
+                                            rank: rank,
+                                            fillLitres: viewModel.fillLitres
                                         )
                                         .redacted(reason: .placeholder)
                                     }
@@ -112,14 +147,16 @@ struct StationListView: View {
                                     NavigationLink {
                                         StationDetailView(
                                             station: station,
-                                            userLocation: locationManager.userLocation
+                                            userLocation: locationManager.userLocation,
+                                            fillLitres: viewModel.fillLitres
                                         )
                                     } label: {
                                         StationRowView(
                                             station: station,
                                             fuelType: viewModel.selectedFuelType,
                                             userLocation: locationManager.userLocation,
-                                            rank: rank
+                                            rank: rank,
+                                            fillLitres: viewModel.fillLitres
                                         )
                                     }
                                 }
@@ -182,6 +219,9 @@ struct StationListView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView(subscriptionManager: subscriptionManager)
+            }
+            .sheet(isPresented: $showCalculator) {
+                FillUpCalculatorView(viewModel: viewModel)
             }
             .onAppear {
                 if locationManager.authorizationStatus == .notDetermined {

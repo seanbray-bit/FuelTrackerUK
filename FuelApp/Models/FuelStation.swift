@@ -43,4 +43,27 @@ struct FuelPrice: Codable, Identifiable {
     var formattedPrice: String {
         String(format: "%.1fp", pricePerLitre)
     }
+
+    /// Total cost in pounds (£) to buy `litres` litres at this price.
+    /// `pricePerLitre` is stored in pence, so we divide by 100.
+    func totalCost(forLitres litres: Double) -> Double {
+        (pricePerLitre * litres) / 100.0
+    }
+}
+
+// MARK: - Fill-up cost helpers
+
+extension FuelStation {
+    /// Total cost (£) to fill `litres` litres of `fuelType`,
+    /// or nil if that fuel type isn't priced at this station.
+    func fillCost(for fuelType: FuelType, litres: Double) -> Double? {
+        price(for: fuelType)?.totalCost(forLitres: litres)
+    }
+}
+
+extension Double {
+    /// Formats a pounds value as GB currency, e.g. "£54.80".
+    var gbpFormatted: String {
+        formatted(.currency(code: "GBP"))
+    }
 }
