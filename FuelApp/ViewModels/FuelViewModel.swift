@@ -43,11 +43,14 @@ final class FuelViewModel: ObservableObject {
                 radiusMetres: searchRadiusMetres
             )
 
+            // A successful empty response is still the latest station list.
+            // Clear results from the previous location/radius rather than
+            // displaying stations that are no longer in range.
+            stations = results
+            lastRefreshed = Date()
+
             if results.isEmpty {
                 errorMessage = "No fuel stations found nearby. Try increasing your search radius."
-            } else {
-                stations = results
-                lastRefreshed = Date()
             }
         } catch {
             errorMessage = error.localizedDescription
