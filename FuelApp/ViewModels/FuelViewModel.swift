@@ -12,6 +12,8 @@ final class FuelViewModel: ObservableObject {
 
     private let apiService = FuelAPIService.shared
     private var refreshTask: Task<Void, Never>?
+    // An older overlapping lookup must never replace the latest location's result.
+    private var latestRequestID = UUID()
 
     var searchRadiusMetres: Double {
         searchRadiusMiles * 1609.344
@@ -34,14 +36,20 @@ final class FuelViewModel: ObservableObject {
     // MARK: - Fetch stations
 
     func fetchStations(near location: CLLocation) async {
+        // Calls may overlap when a location change, manual refresh and timer coincide.
+        // Snapshot the radius and only publish results from the newest request.
+        let requestID = UUID()
+        latestRequestID = requestID
+        let radiusMetres = searchRadiusMetres
         isLoading = true
         errorMessage = nil
 
         do {
             let results = try await apiService.fetchStations(
                 near: location,
-                radiusMetres: searchRadiusMetres
+                radiusMetres: radiusMetres
             )
+            guard latestRequestID == requestID else { return }
 
             // A successful empty response is still the latest station list.
             // Clear results from the previous location/radius rather than
@@ -53,9 +61,11 @@ final class FuelViewModel: ObservableObject {
                 errorMessage = "No fuel stations found nearby. Try increasing your search radius."
             }
         } catch {
+            guard latestRequestID == requestID else { return }
             errorMessage = error.localizedDescription
         }
 
+        // An older completion must not hide the newest request's spinner.
         isLoading = false
     }
 
