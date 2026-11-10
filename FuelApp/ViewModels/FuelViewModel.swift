@@ -36,6 +36,9 @@ final class FuelViewModel: ObservableObject {
     // MARK: - Fetch stations
 
     func fetchStations(near location: CLLocation) async {
+        // A stopped auto-refresh must not start an extra lookup.
+        guard !Task.isCancelled else { return }
+
         // Calls may overlap when a location change, manual refresh and timer coincide.
         // Snapshot the radius and only publish results from the newest request.
         let requestID = UUID()
@@ -43,13 +46,18 @@ final class FuelViewModel: ObservableObject {
         let radiusMetres = searchRadiusMetres
         isLoading = true
         errorMessage = nil
+        // A cancelled latest request still needs to release the spinner.
+        // A superseded request must not hide the current request's spinner.
+        defer {
+            if latestRequestID == requestID { isLoading = false }
+        }
 
         do {
             let results = try await apiService.fetchStations(
                 near: location,
                 radiusMetres: radiusMetres
             )
-            guard latestRequestID == requestID else { return }
+            guard latestRequestID == requestID, !Task.isCancelled else { return }
 
             // A successful empty response is still the latest station list.
             // Clear results from the previous location/radius rather than
@@ -60,13 +68,12 @@ final class FuelViewModel: ObservableObject {
             if results.isEmpty {
                 errorMessage = "No fuel stations found nearby. Try increasing your search radius."
             }
+        } catch is CancellationError {
+            // Expected cancellation is not a user-visible network failure.
         } catch {
-            guard latestRequestID == requestID else { return }
+            guard latestRequestID == requestID, !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
         }
-
-        // An older completion must not hide the newest request's spinner.
-        isLoading = false
     }
 
     // MARK: - Auto-refresh (every 5 minutes)
@@ -75,7 +82,13 @@ final class FuelViewModel: ObservableObject {
         refreshTask?.cancel()
         refreshTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(300))
+                // Sleep throws when cancelled; never swallow it and fetch once more.
+                do {
+                    try await Task.sleep(for: .seconds(300))
+                } catch {
+                    break
+                }
+                guard !Task.isCancelled else { break }
                 if let location = locationManager.userLocation {
                     await fetchStations(near: location)
                 }
@@ -85,6 +98,7 @@ final class FuelViewModel: ObservableObject {
 
     func stopAutoRefresh() {
         refreshTask?.cancel()
+        refreshTask = nil
     }
 
     // MARK: - Stats
