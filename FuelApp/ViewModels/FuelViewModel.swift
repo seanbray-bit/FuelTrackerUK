@@ -10,10 +10,25 @@ final class FuelViewModel: ObservableObject {
     @Published var lastRefreshed: Date?
     @Published var searchRadiusMiles: Double = 10
 
-    private let apiService = FuelAPIService.shared
+    // Injectable seams make request races and timer ticks deterministic in tests.
+    // Production callers continue to use the shared live service and 300-second sleep.
+    private let stationLookup: (CLLocation, Double) async throws -> [FuelStation]
+    private let sleepFor: (Duration) async throws -> Void
     private var refreshTask: Task<Void, Never>?
     // An older overlapping lookup must never replace the latest location's result.
     private var latestRequestID = UUID()
+
+    init(
+        stationLookup: @escaping (CLLocation, Double) async throws -> [FuelStation] = { location, radius in
+            try await FuelAPIService.shared.fetchStations(near: location, radiusMetres: radius)
+        },
+        sleepFor: @escaping (Duration) async throws -> Void = { duration in
+            try await Task<Never, Never>.sleep(for: duration)
+        }
+    ) {
+        self.stationLookup = stationLookup
+        self.sleepFor = sleepFor
+    }
 
     var searchRadiusMetres: Double {
         searchRadiusMiles * 1609.344
@@ -53,10 +68,7 @@ final class FuelViewModel: ObservableObject {
         }
 
         do {
-            let results = try await apiService.fetchStations(
-                near: location,
-                radiusMetres: radiusMetres
-            )
+            let results = try await stationLookup(location, radiusMetres)
             guard latestRequestID == requestID, !Task.isCancelled else { return }
 
             // A successful empty response is still the latest station list.
@@ -84,7 +96,7 @@ final class FuelViewModel: ObservableObject {
             while !Task.isCancelled {
                 // Sleep throws when cancelled; never swallow it and fetch once more.
                 do {
-                    try await Task.sleep(for: .seconds(300))
+                    try await sleepFor(.seconds(300))
                 } catch {
                     break
                 }
