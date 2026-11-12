@@ -3,7 +3,7 @@ import CoreLocation
 
 /// Fetches UK fuel price data.
 /// Currently uses the UK Government Open Data feed for fuel prices.
-/// Can be extended to use paid APIs for real-time data.
+/// Unavailable prices must never become synthetic forecourt quotes.
 actor FuelAPIService {
 
     static let shared = FuelAPIService()
@@ -112,26 +112,21 @@ actor FuelAPIService {
 
     // MARK: - Price enrichment
     // Attempts to fetch real prices from UK Gov open data.
-    // Falls back to estimated prices based on brand averages if unavailable.
+    // Leave prices unavailable when no provider record matches.
     private func enrichWithPrices(stations: [FuelStation]) async throws -> [FuelStation] {
         // Try to fetch CMA mandatory price data
         let livePrices = await fetchCMAPrices()
 
         return stations.map { station in
             var enriched = station
-            let now = Date()
-
-            // Try to match with live CMA data by brand/postcode
+            // Match reported provider data by brand/postcode
             if let matched = livePrices.first(where: {
                 $0.brand.lowercased() == station.brand.lowercased() &&
                 $0.postcode.lowercased().replacingOccurrences(of: " ", with: "") ==
                 station.postcode.lowercased().replacingOccurrences(of: " ", with: "")
             }) {
                 enriched.prices = matched.prices
-            } else {
-                // Use brand average prices as fallback
-                enriched.prices = estimatedPrices(for: station.brand, date: now)
-            }
+            } // Otherwise retain this station without a price.
 
             return enriched
         }
@@ -147,7 +142,9 @@ actor FuelAPIService {
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else { return [] }
             return parseCMACSV(data: data)
         } catch {
             return []
@@ -159,9 +156,16 @@ actor FuelAPIService {
 
         var results: [StationPriceData] = []
         let lines = csv.components(separatedBy: .newlines)
-        let now = Date()
+        // Reject unexpected CSV layouts (including HTML error pages) rather than misprice.
+        guard let header = lines.first else { return [] }
+        let columns = header.lowercased().components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard Array(columns.prefix(4)) == ["brand", "postcode", "unleaded_price", "diesel_price"] else {
+            return []
+        }
+        let retrievedAt = Date()
 
-        // Skip header row
+        // Skip validated header row
         for line in lines.dropFirst() {
             let columns = line.components(separatedBy: ",")
             // Expected: brand, postcode, unleaded_price, diesel_price, ...
@@ -175,10 +179,10 @@ actor FuelAPIService {
             var prices: [FuelPrice] = []
 
             if let p = unlPrice, p > 0 {
-                prices.append(FuelPrice(fuelType: .unleaded, pricePerLitre: p, inStock: true, lastUpdated: now))
+                prices.append(FuelPrice(fuelType: .unleaded, pricePerLitre: p, inStock: nil, lastUpdated: retrievedAt))
             }
             if let p = dslPrice, p > 0 {
-                prices.append(FuelPrice(fuelType: .diesel, pricePerLitre: p, inStock: true, lastUpdated: now))
+                prices.append(FuelPrice(fuelType: .diesel, pricePerLitre: p, inStock: nil, lastUpdated: retrievedAt))
             }
 
             results.append(StationPriceData(brand: brand, postcode: postcode, prices: prices))
@@ -187,41 +191,7 @@ actor FuelAPIService {
         return results
     }
 
-    // MARK: - Fallback estimated prices by brand
-    // Based on publicly available UK average prices (updated periodically)
-    private func estimatedPrices(for brand: String, date: Date) -> [FuelPrice] {
-        // UK average prices as baseline (pence per litre)
-        // These would be updated from real data in production
-        let brandAdjustment: Double
-        let brandLower = brand.lowercased()
 
-        switch brandLower {
-        case let b where b.contains("asda") || b.contains("morrisons") || b.contains("sainsbury") || b.contains("tesco"):
-            brandAdjustment = -2.0 // Supermarkets typically cheaper
-        case let b where b.contains("shell") || b.contains("bp"):
-            brandAdjustment = 2.0 // Premium brands slightly higher
-        case let b where b.contains("esso"):
-            brandAdjustment = 1.0
-        default:
-            brandAdjustment = 0.0
-        }
-
-        // Base UK averages (these get overwritten by real data when available)
-        let baseUnleaded = 142.5 + brandAdjustment
-        let baseDiesel = 148.2 + brandAdjustment
-        let baseSuperUnleaded = 155.8 + brandAdjustment
-        let basePremiumDiesel = 158.4 + brandAdjustment
-
-        // Add small random variation to simulate per-station differences
-        let variation = Double.random(in: -1.5...1.5)
-
-        return [
-            FuelPrice(fuelType: .unleaded, pricePerLitre: baseUnleaded + variation, inStock: true, lastUpdated: date),
-            FuelPrice(fuelType: .diesel, pricePerLitre: baseDiesel + variation, inStock: true, lastUpdated: date),
-            FuelPrice(fuelType: .superUnleaded, pricePerLitre: baseSuperUnleaded + variation, inStock: Bool.random() ? true : true, lastUpdated: date),
-            FuelPrice(fuelType: .premiumDiesel, pricePerLitre: basePremiumDiesel + variation, inStock: Bool.random(), lastUpdated: date),
-        ]
-    }
 }
 
 // MARK: - Supporting types

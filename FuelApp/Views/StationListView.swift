@@ -23,18 +23,18 @@ struct StationListView: View {
                 // Stats bar
                 if let cheapest = viewModel.cheapestPrice {
                     HStack {
-                        Label("Cheapest: **\(cheapest)**", systemImage: "arrow.down.circle.fill")
+                        Label("Lowest reported: **\(cheapest)**", systemImage: "arrow.down.circle.fill")
                             .foregroundColor(.green)
                             .font(.system(size: 13))
 
                         Spacer()
 
-                        Text("\(viewModel.stationsInStock) in stock")
+                        Text("Stock unknown")
                             .font(.system(size: 13))
                             .foregroundColor(.secondary)
 
                         if let avg = viewModel.averagePrice {
-                            Text("Avg: \(avg)")
+                            Text("Reported avg: \(avg)")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
                         }
@@ -86,7 +86,7 @@ struct StationListView: View {
 
                     if sorted.isEmpty && !viewModel.isLoading {
                         Spacer()
-                        Text("No stations found for \(viewModel.selectedFuelType.rawValue)")
+                        Text("No reported prices for \(viewModel.selectedFuelType.rawValue) nearby. Stations may still be present.")
                             .foregroundColor(.secondary)
                         Spacer()
                     } else {
@@ -158,7 +158,7 @@ struct StationListView: View {
                     HStack {
                         Image(systemName: "clock")
                             .font(.system(size: 10))
-                        Text("Updated \(lastRefreshed.formatted(.relative(presentation: .named)))")
+                        Text("Search completed \(lastRefreshed.formatted(.relative(presentation: .named))) — price observation times unknown")
                             .font(.system(size: 11))
                     }
                     .foregroundColor(.secondary)

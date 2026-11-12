@@ -21,7 +21,7 @@ struct StationMapView: View {
                     ForEach(Array(sorted.enumerated()), id: \.element.id) { index, station in
                         let rank = index + 1
                         if let price = station.price(for: viewModel.selectedFuelType) {
-                            Annotation(price.formattedPrice, coordinate: station.coordinate) {
+                            Annotation("Reported \(price.formattedPrice)", coordinate: station.coordinate) {
                                 ZStack {
                                     Circle()
                                         .fill(rank <= 3 ? Color.green : Color.orange)
