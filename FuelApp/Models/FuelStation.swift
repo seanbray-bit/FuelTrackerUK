@@ -37,7 +37,8 @@ struct FuelPrice: Codable, Identifiable {
     var id: String { fuelType.rawValue }
     let fuelType: FuelType
     let pricePerLitre: Double // pence per litre
-    let inStock: Bool
+    // nil means unknown: a petrol price is not evidence of fuel availability.
+    let inStock: Bool?
     let lastUpdated: Date
 
     var formattedPrice: String {
