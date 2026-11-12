@@ -48,6 +48,10 @@ struct StationDetailView: View {
                 Text("Fuel Prices")
                     .font(.headline)
 
+                if station.prices.isEmpty {
+                    Text("No reported prices. Fuel availability is unknown.")
+                        .foregroundColor(.secondary)
+                }
                 ForEach(station.prices) { price in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -60,19 +64,14 @@ struct StationDetailView: View {
 
                         Spacer()
 
-                        // Stock status
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(price.inStock ? Color.green : Color.red)
-                                .frame(width: 10, height: 10)
-                            Text(price.inStock ? "In Stock" : "Out of Stock")
-                                .font(.system(size: 13))
-                                .foregroundColor(price.inStock ? .green : .red)
-                        }
+                        // A price feed does not confirm fuel stock.
+                        Text(price.inStock == nil ? "Stock unknown" : (price.inStock == true ? "In stock" : "Out of stock"))
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
 
                         Text(price.formattedPrice)
                             .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(price.inStock ? .green : .secondary)
+                            .foregroundColor(.primary)
                             .frame(minWidth: 80, alignment: .trailing)
                     }
                     .padding(.vertical, 8)
@@ -84,7 +83,7 @@ struct StationDetailView: View {
                 // Last updated
                 HStack {
                     Image(systemName: "clock")
-                    Text("Last updated: \(station.lastUpdated.formatted(.relative(presentation: .named)))")
+                    Text("Station listing retrieved: \(station.lastUpdated.formatted(.relative(presentation: .named)))")
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)
