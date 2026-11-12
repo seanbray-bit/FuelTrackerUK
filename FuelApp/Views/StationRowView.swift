@@ -45,16 +45,11 @@ struct StationRowView: View {
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(rank <= 3 ? .green : .primary)
 
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(price.inStock ? Color.green : Color.red)
-                            .frame(width: 8, height: 8)
-                        Text(price.inStock ? "In Stock" : "Out of Stock")
-                            .font(.system(size: 11))
-                            .foregroundColor(price.inStock ? .green : .red)
-                    }
+                    Text(price.inStock == nil ? "Stock unknown" : (price.inStock == true ? "In stock" : "Out of stock"))
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
                 } else {
-                    Text("N/A")
+                    Text("Price unavailable")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.secondary)
                 }
