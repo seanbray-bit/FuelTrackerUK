@@ -83,56 +83,82 @@ struct StationListView: View {
                     Spacer()
                 } else {
                     let sorted = viewModel.sortedStations(from: locationManager.userLocation)
+                    let priced = sorted.filter { $0.price(for: viewModel.selectedFuelType) != nil }
+                    let unpriced = sorted.filter { $0.price(for: viewModel.selectedFuelType) == nil }
 
                     if sorted.isEmpty && !viewModel.isLoading {
                         Spacer()
-                        Text("No reported prices for \(viewModel.selectedFuelType.rawValue) nearby. Stations may still be present.")
+                        Text("No nearby fuel stations found. Try increasing your search radius.")
                             .foregroundColor(.secondary)
                         Spacer()
                     } else {
                         List {
-                            ForEach(Array(sorted.enumerated()), id: \.element.id) { index, station in
-                                let rank = index + 1
+                            if !priced.isEmpty {
+                                Section("Reported prices") {
+                                    ForEach(Array(priced.enumerated()), id: \.element.id) { index, station in
+                                        let rank = index + 1
 
-                                if !subscriptionManager.isSubscribed && rank > 3 {
-                                    // Show blurred row for non-subscribers
-                                    Button {
-                                        showPaywall = true
-                                    } label: {
-                                        StationRowView(
-                                            station: station,
-                                            fuelType: viewModel.selectedFuelType,
-                                            userLocation: locationManager.userLocation,
-                                            rank: rank
-                                        )
-                                        .redacted(reason: .placeholder)
-                                    }
-                                    .tint(.primary)
-                                } else {
-                                    NavigationLink {
-                                        StationDetailView(
-                                            station: station,
-                                            userLocation: locationManager.userLocation
-                                        )
-                                    } label: {
-                                        StationRowView(
-                                            station: station,
-                                            fuelType: viewModel.selectedFuelType,
-                                            userLocation: locationManager.userLocation,
-                                            rank: rank
-                                        )
+                                        if !subscriptionManager.isSubscribed && rank > 3 {
+                                            // Only reported-price rankings are subscription-gated.
+                                            Button {
+                                                showPaywall = true
+                                            } label: {
+                                                StationRowView(
+                                                    station: station,
+                                                    fuelType: viewModel.selectedFuelType,
+                                                    userLocation: locationManager.userLocation,
+                                                    rank: rank
+                                                )
+                                                .redacted(reason: .placeholder)
+                                            }
+                                            .tint(.primary)
+                                        } else {
+                                            NavigationLink {
+                                                StationDetailView(
+                                                    station: station,
+                                                    userLocation: locationManager.userLocation
+                                                )
+                                            } label: {
+                                                StationRowView(
+                                                    station: station,
+                                                    fuelType: viewModel.selectedFuelType,
+                                                    userLocation: locationManager.userLocation,
+                                                    rank: rank
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
 
-                            if !subscriptionManager.isSubscribed && sorted.count > 3 {
+                            if !unpriced.isEmpty {
+                                Section("Nearby stations — price unavailable") {
+                                    ForEach(unpriced) { station in
+                                        NavigationLink {
+                                            StationDetailView(
+                                                station: station,
+                                                userLocation: locationManager.userLocation
+                                            )
+                                        } label: {
+                                            StationRowView(
+                                                station: station,
+                                                fuelType: viewModel.selectedFuelType,
+                                                userLocation: locationManager.userLocation,
+                                                rank: nil
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if !subscriptionManager.isSubscribed && priced.count > 3 {
                                 Section {
                                     Button {
                                         showPaywall = true
                                     } label: {
                                         HStack {
                                             Image(systemName: "lock.fill")
-                                            Text("Unlock all stations for just \(SubscriptionManager.price)")
+                                            Text("Unlock all reported prices for just \(SubscriptionManager.price)")
                                                 .font(.system(size: 14, weight: .medium))
                                         }
                                         .frame(maxWidth: .infinity)
