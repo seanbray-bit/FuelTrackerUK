@@ -34,17 +34,27 @@ final class FuelViewModel: ObservableObject {
         searchRadiusMiles * 1609.344
     }
 
-    // MARK: - Sorted stations (cheapest first, ALWAYS)
+    // MARK: - Sorted stations (reported prices first, then unpriced locations)
 
     func sortedStations(from location: CLLocation?) -> [FuelStation] {
-        let withPrices = stations.filter { station in
-            station.price(for: selectedFuelType) != nil
-        }
+        stations.sorted { a, b in
+            let priceA = a.price(for: selectedFuelType)?.pricePerLitre
+            let priceB = b.price(for: selectedFuelType)?.pricePerLitre
 
-        return withPrices.sorted { a, b in
-            let priceA = a.price(for: selectedFuelType)?.pricePerLitre ?? .infinity
-            let priceB = b.price(for: selectedFuelType)?.pricePerLitre ?? .infinity
-            return priceA < priceB
+            // An unavailable price is not a reason to hide a real station.
+            if let priceA, let priceB, priceA != priceB { return priceA < priceB }
+            if priceA != nil && priceB == nil { return true }
+            if priceA == nil && priceB != nil { return false }
+
+            // Order equally priced and unpriced stations consistently.
+            if let location {
+                let distanceA = a.distanceValue(from: location)
+                let distanceB = b.distanceValue(from: location)
+                if distanceA != distanceB { return distanceA < distanceB }
+            }
+            let nameOrder = a.name.localizedCaseInsensitiveCompare(b.name)
+            if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+            return a.id < b.id
         }
     }
 

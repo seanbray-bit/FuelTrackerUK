@@ -5,18 +5,26 @@ struct StationRowView: View {
     let station: FuelStation
     let fuelType: FuelType
     let userLocation: CLLocation?
-    let rank: Int
+    let rank: Int?
 
     var body: some View {
         HStack(spacing: 12) {
-            // Rank badge
-            ZStack {
-                Circle()
-                    .fill(rankColor)
+            // Only reported prices have a cheapest-price rank.
+            if let rank {
+                ZStack {
+                    Circle()
+                        .fill(rankColor)
+                        .frame(width: 32, height: 32)
+                    Text("\(rank)")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            } else {
+                Image(systemName: "mappin.circle")
+                    .font(.system(size: 26))
+                    .foregroundColor(.secondary)
                     .frame(width: 32, height: 32)
-                Text("\(rank)")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
+                    .accessibilityHidden(true)
             }
 
             // Station info
@@ -43,7 +51,7 @@ struct StationRowView: View {
                 if let price = station.price(for: fuelType) {
                     Text(price.formattedPrice)
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(rank <= 3 ? .green : .primary)
+                        .foregroundColor((rank ?? Int.max) <= 3 ? .green : .primary)
 
                     Text(price.inStock == nil ? "Stock unknown" : (price.inStock == true ? "In stock" : "Out of stock"))
                         .font(.system(size: 11))
@@ -59,7 +67,7 @@ struct StationRowView: View {
     }
 
     private var rankColor: Color {
-        switch rank {
+        switch rank ?? 0 {
         case 1: return .green
         case 2: return .green.opacity(0.7)
         case 3: return .orange

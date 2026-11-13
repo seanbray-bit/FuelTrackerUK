@@ -20,22 +20,28 @@ struct StationMapView: View {
 
                     ForEach(Array(sorted.enumerated()), id: \.element.id) { index, station in
                         let rank = index + 1
-                        if let price = station.price(for: viewModel.selectedFuelType) {
-                            Annotation("Reported \(price.formattedPrice)", coordinate: station.coordinate) {
+                        let price = station.price(for: viewModel.selectedFuelType)
+
+                        Annotation(
+                            price.map { "Reported \($0.formattedPrice)" } ?? "Price unavailable",
+                            coordinate: station.coordinate
+                        ) {
+                            Button {
+                                selectedStation = station
+                            } label: {
                                 ZStack {
                                     Circle()
-                                        .fill(rank <= 3 ? Color.green : Color.orange)
-                                        .frame(width: 36, height: 36)
+                                        .fill(price == nil ? Color.gray : (rank <= 3 ? Color.green : Color.orange))
+                                        .frame(width: 44, height: 44)
                                     Image(systemName: "fuelpump.fill")
                                         .font(.system(size: 16))
                                         .foregroundColor(.white)
                                 }
-                                .onTapGesture {
-                                    selectedStation = station
-                                }
                             }
-                            .tag(station)
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(station.name), \(price.map { "reported \($0.formattedPrice)" } ?? "price unavailable")")
                         }
+                        .tag(station)
                     }
                 }
                 .mapControls {
