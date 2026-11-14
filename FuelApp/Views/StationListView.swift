@@ -98,25 +98,25 @@ struct StationListView: View {
                                     ForEach(Array(priced.enumerated()), id: \.element.id) { index, station in
                                         let rank = index + 1
 
-                                        if !subscriptionManager.isSubscribed && rank > 3 {
-                                            // Only reported-price rankings are subscription-gated.
+                                        if !viewModel.canViewReportedPrice(
+                                            for: station,
+                                            pricedRank: rank,
+                                            isSubscribed: subscriptionManager.isSubscribed
+                                        ) {
+                                            // Never put hidden prices in the view or VoiceOver tree.
                                             Button {
                                                 showPaywall = true
                                             } label: {
-                                                StationRowView(
-                                                    station: station,
-                                                    fuelType: viewModel.selectedFuelType,
-                                                    userLocation: locationManager.userLocation,
-                                                    rank: rank
-                                                )
-                                                .redacted(reason: .placeholder)
+                                                Label("Reported price #\(rank) locked — unlock to view", systemImage: "lock.fill")
                                             }
+                                            .accessibilityLabel("Reported price rank \(rank) locked. Opens subscription options.")
                                             .tint(.primary)
                                         } else {
                                             NavigationLink {
                                                 StationDetailView(
                                                     station: station,
-                                                    userLocation: locationManager.userLocation
+                                                    userLocation: locationManager.userLocation,
+                                                    visibleFuelType: subscriptionManager.isSubscribed ? nil : viewModel.selectedFuelType
                                                 )
                                             } label: {
                                                 StationRowView(
@@ -137,7 +137,8 @@ struct StationListView: View {
                                         NavigationLink {
                                             StationDetailView(
                                                 station: station,
-                                                userLocation: locationManager.userLocation
+                                                userLocation: locationManager.userLocation,
+                                                visibleFuelType: subscriptionManager.isSubscribed ? nil : viewModel.selectedFuelType
                                             )
                                         } label: {
                                             StationRowView(

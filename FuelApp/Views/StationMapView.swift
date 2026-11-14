@@ -13,35 +13,47 @@ struct StationMapView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                Map(position: $cameraPosition, selection: $selectedStation) {
+                // Native Map selection could bypass the paywall's Button handler.
+                Map(position: $cameraPosition) {
                     UserAnnotation()
-
                     let sorted = viewModel.sortedStations(from: locationManager.userLocation)
-
                     ForEach(Array(sorted.enumerated()), id: \.element.id) { index, station in
-                        let rank = index + 1
                         let price = station.price(for: viewModel.selectedFuelType)
-
-                        Annotation(
-                            price.map { "Reported \($0.formattedPrice)" } ?? "Price unavailable",
-                            coordinate: station.coordinate
-                        ) {
+                        // sortedStations places all priced stations ahead of unpriced ones.
+                        let pricedRank: Int? = price == nil ? nil : index + 1
+                        let unlocked = viewModel.canViewReportedPrice(
+                            for: station,
+                            pricedRank: pricedRank,
+                            isSubscribed: subscriptionManager.isSubscribed
+                        )
+                        let title = !unlocked
+                            ? "Price locked"
+                            : (price.map { "Reported \($0.formattedPrice)" } ?? "Price unavailable")
+                        Annotation(title, coordinate: station.coordinate) {
                             Button {
-                                selectedStation = station
+                                if unlocked {
+                                    selectedStation = station
+                                } else {
+                                    showPaywall = true
+                                }
                             } label: {
                                 ZStack {
                                     Circle()
-                                        .fill(price == nil ? Color.gray : (rank <= 3 ? Color.green : Color.orange))
+                                        .fill(!unlocked ? Color.orange : (price == nil ? Color.gray : ((pricedRank ?? 4) <= 3 ? Color.green : Color.orange)))
                                         .frame(width: 44, height: 44)
-                                    Image(systemName: "fuelpump.fill")
+                                    Image(systemName: unlocked ? "fuelpump.fill" : "lock.fill")
                                         .font(.system(size: 16))
                                         .foregroundColor(.white)
                                 }
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("\(station.name), \(price.map { "reported \($0.formattedPrice)" } ?? "price unavailable")")
+                            .accessibilityLabel(
+                                !unlocked
+                                ? "\(station.name), reported price locked"
+                                : "\(station.name), \(price.map { "reported \($0.formattedPrice)" } ?? "price unavailable")"
+                            )
+                            .accessibilityHint(unlocked ? "Opens station details" : "Opens subscription options")
                         }
-                        .tag(station)
                     }
                 }
                 .mapControls {
@@ -49,8 +61,6 @@ struct StationMapView: View {
                     MapCompass()
                     MapScaleView()
                 }
-
-                // Fuel type picker overlay
                 Picker("Fuel Type", selection: $viewModel.selectedFuelType) {
                     ForEach(FuelType.allCases) { type in
                         Text(type.shortName).tag(type)
@@ -62,20 +72,38 @@ struct StationMapView: View {
             }
             .navigationTitle("Map")
             .sheet(item: $selectedStation) { station in
-                NavigationStack {
-                    StationDetailView(
-                        station: station,
-                        userLocation: locationManager.userLocation
-                    )
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") {
-                                selectedStation = nil
+                // Re-check entitlement and rank at the detail boundary.
+                let sorted = viewModel.sortedStations(from: locationManager.userLocation)
+                if let index = sorted.firstIndex(where: { $0.id == station.id }) {
+                    let pricedRank: Int? = station.price(for: viewModel.selectedFuelType) == nil ? nil : index + 1
+                    if viewModel.canViewReportedPrice(
+                        for: station,
+                        pricedRank: pricedRank,
+                        isSubscribed: subscriptionManager.isSubscribed
+                    ) {
+                        NavigationStack {
+                            StationDetailView(
+                                station: station,
+                                userLocation: locationManager.userLocation,
+                                visibleFuelType: subscriptionManager.isSubscribed ? nil : viewModel.selectedFuelType
+                            )
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button("Done") { selectedStation = nil }
+                                }
                             }
                         }
+                        .presentationDetents([.medium, .large])
+                    } else {
+                        PaywallView(subscriptionManager: subscriptionManager)
                     }
+                } else {
+                    Text("Station results have changed. Select a station again.")
+                        .padding()
                 }
-                .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView(subscriptionManager: subscriptionManager)
             }
         }
     }

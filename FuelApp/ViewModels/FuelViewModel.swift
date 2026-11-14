@@ -34,6 +34,13 @@ final class FuelViewModel: ObservableObject {
         searchRadiusMiles * 1609.344
     }
 
+    // Consistent list, map and detail paywall policy; rank counts priced stations.
+    // Missing rank fails closed for a station that has a reported price.
+    func canViewReportedPrice(for station: FuelStation, pricedRank: Int?, isSubscribed: Bool) -> Bool {
+        guard station.price(for: selectedFuelType) != nil else { return true }
+        return isSubscribed || (pricedRank.map { $0 <= 3 } ?? false)
+    }
+
     // MARK: - Sorted stations (reported prices first, then unpriced locations)
 
     func sortedStations(from location: CLLocation?) -> [FuelStation] {
