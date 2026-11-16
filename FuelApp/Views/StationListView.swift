@@ -33,7 +33,9 @@ struct StationListView: View {
                             .font(.system(size: 13))
                             .foregroundColor(.secondary)
 
-                        if let avg = viewModel.averagePrice {
+                        // Full-market aggregates include premium-locked prices. Do not
+                        // expose them (including through VoiceOver) to free accounts.
+                        if subscriptionManager.isSubscribed, let avg = viewModel.averagePrice {
                             Text("Reported avg: \(avg)")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
