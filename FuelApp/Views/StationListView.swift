@@ -115,10 +115,12 @@ struct StationListView: View {
                                             .tint(.primary)
                                         } else {
                                             NavigationLink {
-                                                StationDetailView(
-                                                    station: station,
-                                                    userLocation: locationManager.userLocation,
-                                                    visibleFuelType: subscriptionManager.isSubscribed ? nil : viewModel.selectedFuelType
+                                                StationDetailDestination(
+                                                    stationID: station.id,
+                                                    viewModel: viewModel,
+                                                    locationManager: locationManager,
+                                                    subscriptionManager: subscriptionManager,
+                                                    onDismiss: nil
                                                 )
                                             } label: {
                                                 StationRowView(
@@ -137,11 +139,13 @@ struct StationListView: View {
                                 Section("Nearby stations — price unavailable") {
                                     ForEach(unpriced) { station in
                                         NavigationLink {
-                                            StationDetailView(
-                                                station: station,
-                                                userLocation: locationManager.userLocation,
-                                                visibleFuelType: subscriptionManager.isSubscribed ? nil : viewModel.selectedFuelType
-                                            )
+                                            StationDetailDestination(
+                                                    stationID: station.id,
+                                                    viewModel: viewModel,
+                                                    locationManager: locationManager,
+                                                    subscriptionManager: subscriptionManager,
+                                                    onDismiss: nil
+                                                )
                                         } label: {
                                             StationRowView(
                                                 station: station,
