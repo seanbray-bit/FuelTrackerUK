@@ -75,7 +75,7 @@ struct StationMapView: View {
             .sheet(item: $selectedStationID) { selection in
                 // Observe live station data and subscription status INSIDE the sheet:
                 // a retained FuelStation snapshot could show stale or locked prices.
-                StationSelectionSheet(
+                StationDetailDestination(
                     stationID: selection.id,
                     viewModel: viewModel,
                     locationManager: locationManager,
@@ -98,12 +98,15 @@ private struct StationSelection: Identifiable {
 
 // This separate observed view recomputes entitlement, price and details whenever
 // the live station list, selected fuel or StoreKit entitlement changes.
-private struct StationSelectionSheet: View {
+// Shared list/map destination: observe current station ID, selected fuel and
+// entitlement while the detail is visible. A captured FuelStation isn't trusted.
+struct StationDetailDestination: View {
     let stationID: String
     @ObservedObject var viewModel: FuelViewModel
     @ObservedObject var locationManager: LocationManager
     @ObservedObject var subscriptionManager: SubscriptionManager
-    let onDismiss: () -> Void
+    // Map presents a sheet with Done; list navigation supplies nil and uses Back.
+    let onDismiss: (() -> Void)?
 
     var body: some View {
         let sorted = viewModel.sortedStations(from: locationManager.userLocation)
@@ -116,30 +119,40 @@ private struct StationSelectionSheet: View {
                 pricedRank: pricedRank,
                 isSubscribed: subscriptionManager.isSubscribed
             ) {
-                NavigationStack {
-                    StationDetailView(
-                        station: currentStation,
-                        userLocation: locationManager.userLocation,
-                        visibleFuelType: subscriptionManager.isSubscribed ? nil : viewModel.selectedFuelType
-                    )
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done", action: onDismiss)
-                        }
+                if let onDismiss {
+                    NavigationStack {
+                        currentDetail(for: currentStation)
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button("Done", action: onDismiss)
+                                }
+                            }
                     }
+                } else {
+                    currentDetail(for: currentStation)
                 }
             } else {
-                // A formerly unpriced or top-three station may have become locked.
+                // A station can become locked after rank/price/entitlement updates.
                 PaywallView(subscriptionManager: subscriptionManager)
             }
         } else {
             VStack(spacing: 12) {
                 Text("Station results have changed. Select a station again.")
                     .multilineTextAlignment(.center)
-                Button("Done", action: onDismiss)
+                if let onDismiss {
+                    Button("Done", action: onDismiss)
+                }
             }
             .padding()
         }
+    }
+
+    private func currentDetail(for station: FuelStation) -> some View {
+        StationDetailView(
+            station: station,
+            userLocation: locationManager.userLocation,
+            visibleFuelType: subscriptionManager.isSubscribed ? nil : viewModel.selectedFuelType
+        )
     }
 }
 
