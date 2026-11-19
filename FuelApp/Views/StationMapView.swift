@@ -25,7 +25,7 @@ struct StationMapView: View {
                         let unlocked = viewModel.canViewReportedPrice(
                             for: station,
                             pricedRank: pricedRank,
-                            isSubscribed: subscriptionManager.isSubscribed
+                            isSubscribed: subscriptionManager.canRevealPremium
                         )
                         let title = !unlocked
                             ? "Price locked"
@@ -117,7 +117,7 @@ struct StationDetailDestination: View {
             if viewModel.canViewReportedPrice(
                 for: currentStation,
                 pricedRank: pricedRank,
-                isSubscribed: subscriptionManager.isSubscribed
+                isSubscribed: subscriptionManager.canRevealPremium
             ) {
                 if let onDismiss {
                     NavigationStack {
@@ -151,7 +151,7 @@ struct StationDetailDestination: View {
         StationDetailView(
             station: station,
             userLocation: locationManager.userLocation,
-            visibleFuelType: subscriptionManager.isSubscribed ? nil : viewModel.selectedFuelType
+            visibleFuelType: subscriptionManager.canRevealPremium ? nil : viewModel.selectedFuelType
         )
     }
 }
