@@ -51,7 +51,7 @@ struct PaywallView: View {
                 Button {
                     Task {
                         await subscriptionManager.purchase()
-                        if subscriptionManager.isSubscribed {
+                        if subscriptionManager.canRevealPremium {
                             dismiss()
                         }
                     }
@@ -77,7 +77,7 @@ struct PaywallView: View {
                 Button("Restore Purchase") {
                     Task {
                         await subscriptionManager.restore()
-                        if subscriptionManager.isSubscribed {
+                        if subscriptionManager.canRevealPremium {
                             dismiss()
                         }
                     }

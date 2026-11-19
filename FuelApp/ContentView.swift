@@ -36,8 +36,11 @@ struct ContentView: View {
             // Reconcile verified StoreKit entitlements on foreground entry;
             // Transaction.updates alone cannot be relied upon for expiry/revocation.
             // Preserve StoreKit's current-entitlement treatment of grace periods.
+            // Publish the pending state before creating an asynchronous task,
+            // so a previously paid user cannot see locked prices on resume.
+            let checkID = subscriptionManager.beginEntitlementRevalidation()
             Task {
-                await subscriptionManager.checkSubscriptionStatus()
+                await subscriptionManager.completeEntitlementRevalidation(for: checkID)
             }
         }
     }

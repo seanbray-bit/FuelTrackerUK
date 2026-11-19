@@ -35,7 +35,7 @@ struct StationListView: View {
 
                         // Full-market aggregates include premium-locked prices. Do not
                         // expose them (including through VoiceOver) to free accounts.
-                        if subscriptionManager.isSubscribed, let avg = viewModel.averagePrice {
+                        if subscriptionManager.canRevealPremium, let avg = viewModel.averagePrice {
                             Text("Reported avg: \(avg)")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
@@ -103,7 +103,7 @@ struct StationListView: View {
                                         if !viewModel.canViewReportedPrice(
                                             for: station,
                                             pricedRank: rank,
-                                            isSubscribed: subscriptionManager.isSubscribed
+                                            isSubscribed: subscriptionManager.canRevealPremium
                                         ) {
                                             // Never put hidden prices in the view or VoiceOver tree.
                                             Button {
@@ -158,7 +158,7 @@ struct StationListView: View {
                                 }
                             }
 
-                            if !subscriptionManager.isSubscribed && priced.count > 3 {
+                            if !subscriptionManager.canRevealPremium && priced.count > 3 {
                                 Section {
                                     Button {
                                         showPaywall = true
