@@ -3,7 +3,10 @@ import StoreKit
 
 @MainActor
 final class SubscriptionManager: ObservableObject {
-    @Published var isSubscribed = false
+    @Published private(set) var isSubscribed = false
+    // Premium data fail closed while StoreKit entitlements are being verified.
+    @Published private(set) var isRevalidating = true
+    var canRevealPremium: Bool { isSubscribed && !isRevalidating }
     @Published var isLoading = false
     @Published var errorMessage: String?
 
@@ -12,6 +15,8 @@ final class SubscriptionManager: ObservableObject {
     static let price = "99p/month"
 
     private var updateTask: Task<Void, Never>?
+    // Only the most recently started check may publish an entitlement result.
+    private var latestEntitlementCheck = UUID()
 
     init() {
         updateTask = Task {
@@ -46,7 +51,9 @@ final class SubscriptionManager: ObservableObject {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
                 await transaction.finish()
-                isSubscribed = true
+                // Reconcile against verified current entitlements rather than
+                // trusting a cached Bool or a single purchase callback.
+                await checkSubscriptionStatus()
             case .userCancelled:
                 break
             case .pending:
@@ -72,25 +79,47 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Check status
 
+    @discardableResult
+    func beginEntitlementRevalidation() -> UUID {
+        let checkID = UUID()
+        latestEntitlementCheck = checkID
+        // Called synchronously on foreground entry, BEFORE the async check.
+        isRevalidating = true
+        return checkID
+    }
+
     func checkSubscriptionStatus() async {
+        let checkID = beginEntitlementRevalidation()
+        await completeEntitlementRevalidation(for: checkID)
+    }
+
+    func completeEntitlementRevalidation(for checkID: UUID) async {
+        var hasEntitlement = false
         for await result in Transaction.currentEntitlements {
+            guard !Task.isCancelled else { return }
             if let transaction = try? checkVerified(result),
                transaction.productID == Self.productID {
-                isSubscribed = true
-                return
+                hasEntitlement = true
+                break
             }
         }
-        isSubscribed = false
+        // Async entitlement iteration can suspend; an older result must not
+        // overwrite the outcome of a newer check.
+        guard !Task.isCancelled, latestEntitlementCheck == checkID else { return }
+        isSubscribed = hasEntitlement
+        isRevalidating = false
     }
 
     // MARK: - Listen for updates
 
     private func listenForTransactions() async {
         for await result in Transaction.updates {
+            // Hide premium content as soon as StoreKit reports a change.
+            let checkID = beginEntitlementRevalidation()
             if let transaction = try? checkVerified(result) {
                 await transaction.finish()
-                await checkSubscriptionStatus()
             }
+            await completeEntitlementRevalidation(for: checkID)
         }
     }
 
