@@ -1,28 +1,19 @@
 import Foundation
 import CoreLocation
 
-/// Fetches UK fuel price data.
-/// Currently uses the UK Government Open Data feed for fuel prices.
-/// Unavailable prices must never become synthetic forecourt quotes.
+/// Locates UK fuel forecourts from OpenStreetMap.
+/// Forecourt prices require a verified provider site ID and provenance.
+/// Never infer a pump price from a matching retailer name or postcode.
 actor FuelAPIService {
 
     static let shared = FuelAPIService()
 
-    // MARK: - UK Government Open Data endpoint
-    // The CMA (Competition and Markets Authority) requires major retailers to publish prices.
-    // This is updated daily for the largest retailers.
-    private let ukGovFuelURL = "https://www.gov.uk/guidance/access-fuel-price-data"
-
-    /// Fetches stations near the user's location.
-    /// Uses OpenStreetMap Overpass API for station locations + UK Gov data for prices.
+    /// Fetches station locations only while no verified OSM-to-provider ID
+    /// crosswalk exists. Do not attribute prices by brand/postcode.
+    /// A future provider integration must validate site IDs, fuel grades,
+    /// units and source observation timestamps before populating prices.
     func fetchStations(near location: CLLocation, radiusMetres: Double = 16093) async throws -> [FuelStation] {
-        // Step 1: Find fuel stations nearby using Overpass API (OpenStreetMap)
-        let stations = try await fetchNearbyStations(location: location, radius: radiusMetres)
-
-        // Step 2: Enrich with price data where available
-        let enriched = try await enrichWithPrices(stations: stations)
-
-        return enriched
+        return try await fetchNearbyStations(location: location, radius: radiusMetres)
     }
 
     // MARK: - OpenStreetMap Overpass API (free, no key needed)
@@ -82,7 +73,12 @@ actor FuelAPIService {
 
             guard let latitude = lat, let longitude = lon else { continue }
 
-            let id = "\(element["id"] ?? UUID().uuidString)"
+            // OSM node and way numbers occupy independent ID namespaces.
+            // Reject malformed identity instead of generating unstable IDs.
+            guard let elementType = element["type"] as? String,
+                  (elementType == "node" || elementType == "way"),
+                  let numericID = element["id"] as? NSNumber else { continue }
+            let id = "osm:\(elementType):\(numericID.stringValue)"
             let name = tags["name"] ?? tags["brand"] ?? "Fuel Station"
             let brand = tags["brand"] ?? tags["operator"] ?? "Independent"
 
@@ -100,7 +96,7 @@ actor FuelAPIService {
                 postcode: postcode,
                 latitude: latitude,
                 longitude: longitude,
-                prices: [], // Will be enriched with price data
+                prices: [], // No validated provider forecourt match exists yet
                 lastUpdated: now
             )
 
@@ -110,97 +106,9 @@ actor FuelAPIService {
         return stations
     }
 
-    // MARK: - Price enrichment
-    // Attempts to fetch real prices from UK Gov open data.
-    // Leave prices unavailable when no provider record matches.
-    private func enrichWithPrices(stations: [FuelStation]) async throws -> [FuelStation] {
-        // Try to fetch CMA mandatory price data
-        let livePrices = await fetchCMAPrices()
-
-        return stations.map { station in
-            var enriched = station
-            // Match reported provider data by brand/postcode
-            if let matched = livePrices.first(where: {
-                $0.brand.lowercased() == station.brand.lowercased() &&
-                $0.postcode.lowercased().replacingOccurrences(of: " ", with: "") ==
-                station.postcode.lowercased().replacingOccurrences(of: " ", with: "")
-            }) {
-                enriched.prices = matched.prices
-            } // Otherwise retain this station without a price.
-
-            return enriched
-        }
-    }
-
-    // MARK: - CMA Open Data
-    // UK's Competition and Markets Authority requires top 7 retailers to publish daily prices.
-    // Retailers: Asda, BP, Esso, Morrisons, Sainsbury's, Shell, Tesco
-    private func fetchCMAPrices() async -> [StationPriceData] {
-        // CMA road fuel price data endpoint
-        guard let url = URL(string: "https://assets.publishing.service.gov.uk/media/fuel-prices/current-fuel-prices.csv") else {
-            return []
-        }
-
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else { return [] }
-            return parseCMACSV(data: data)
-        } catch {
-            return []
-        }
-    }
-
-    private func parseCMACSV(data: Data) -> [StationPriceData] {
-        guard let csv = String(data: data, encoding: .utf8) else { return [] }
-
-        var results: [StationPriceData] = []
-        let lines = csv.components(separatedBy: .newlines)
-        // Reject unexpected CSV layouts (including HTML error pages) rather than misprice.
-        guard let header = lines.first else { return [] }
-        let columns = header.lowercased().components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        guard Array(columns.prefix(4)) == ["brand", "postcode", "unleaded_price", "diesel_price"] else {
-            return []
-        }
-        let retrievedAt = Date()
-
-        // Skip validated header row
-        for line in lines.dropFirst() {
-            let columns = line.components(separatedBy: ",")
-            // Expected: brand, postcode, unleaded_price, diesel_price, ...
-            guard columns.count >= 4 else { continue }
-
-            let brand = columns[0].trimmingCharacters(in: .whitespacesAndNewlines)
-            let postcode = columns[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            let unlPrice = Double(columns[2].trimmingCharacters(in: .whitespacesAndNewlines))
-            let dslPrice = Double(columns[3].trimmingCharacters(in: .whitespacesAndNewlines))
-
-            var prices: [FuelPrice] = []
-
-            if let p = unlPrice, p > 0 {
-                prices.append(FuelPrice(fuelType: .unleaded, pricePerLitre: p, inStock: nil, lastUpdated: retrievedAt))
-            }
-            if let p = dslPrice, p > 0 {
-                prices.append(FuelPrice(fuelType: .diesel, pricePerLitre: p, inStock: nil, lastUpdated: retrievedAt))
-            }
-
-            results.append(StationPriceData(brand: brand, postcode: postcode, prices: prices))
-        }
-
-        return results
-    }
-
-
 }
 
 // MARK: - Supporting types
-
-struct StationPriceData {
-    let brand: String
-    let postcode: String
-    let prices: [FuelPrice]
-}
 
 enum FuelAPIError: LocalizedError {
     case invalidURL
