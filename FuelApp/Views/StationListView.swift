@@ -46,6 +46,21 @@ struct StationListView: View {
                     .background(Color(.systemGray6))
                 }
 
+                // Explicitly distinguish known forecourt locations from
+                // unavailable prices; never imply unverified values are live.
+                if !viewModel.stations.isEmpty &&
+                    viewModel.stations.allSatisfy({ $0.prices.isEmpty }) {
+                    Label(
+                        "Verified pump prices are unavailable. Showing forecourt locations only.",
+                        systemImage: "info.circle"
+                    )
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+
                 // Station list
                 if viewModel.isLoading && viewModel.stations.isEmpty {
                     Spacer()
