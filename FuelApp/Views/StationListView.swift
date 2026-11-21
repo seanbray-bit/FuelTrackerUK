@@ -61,6 +61,27 @@ struct StationListView: View {
                     .padding(.vertical, 8)
                 }
 
+                // A failed update must be visible even when earlier station locations
+                // remain on screen; otherwise users could mistake them for fresh data.
+                if let error = viewModel.errorMessage, !viewModel.stations.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Station update failed", systemImage: "exclamationmark.triangle.fill")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Showing previously loaded station locations. \(error)")
+                            .font(.footnote)
+                        Button("Retry station update") {
+                            Task { await refresh() }
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityHint("Tries to load the latest nearby station locations.")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.vertical, 10)
+                    .background(Color(.secondarySystemBackground))
+                    .accessibilityElement(children: .contain)
+                }
+
                 // Station list
                 if viewModel.isLoading && viewModel.stations.isEmpty {
                     Spacer()
@@ -76,7 +97,7 @@ struct StationListView: View {
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
                         Button("Try Again") {
-                            refresh()
+                            Task { await refresh() }
                         }
                         .buttonStyle(.borderedProminent)
                     }
@@ -196,7 +217,7 @@ struct StationListView: View {
                         }
                         .listStyle(.plain)
                         .refreshable {
-                            refresh()
+                            await refresh()
                         }
                     }
                 }
@@ -221,7 +242,7 @@ struct StationListView: View {
                         ProgressView()
                     } else {
                         Button {
-                            refresh()
+                            Task { await refresh() }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                         }
@@ -246,10 +267,8 @@ struct StationListView: View {
         }
     }
 
-    private func refresh() {
+    private func refresh() async {
         guard let location = locationManager.userLocation else { return }
-        Task {
-            await viewModel.fetchStations(near: location)
-        }
+        await viewModel.fetchStations(near: location)
     }
 }
