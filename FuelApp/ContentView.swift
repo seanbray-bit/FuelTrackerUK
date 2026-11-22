@@ -30,6 +30,15 @@ struct ContentView: View {
         .tint(.green)
         .onAppear {
             viewModel.startAutoRefresh(locationManager: locationManager)
+            // Covers a location fix that was already available before this view appeared.
+            if let location = locationManager.userLocation, viewModel.reserveLocationRefreshIfNeeded(for: location) {
+                Task { await viewModel.fetchStations(near: location) }
+            }
+        }
+        // Keep relocation refresh at the tab root so it also works while Map is visible.
+        .onChange(of: locationManager.userLocation) { _, newLocation in
+            guard let location = newLocation, viewModel.reserveLocationRefreshIfNeeded(for: location) else { return }
+            Task { await viewModel.fetchStations(near: location) }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }

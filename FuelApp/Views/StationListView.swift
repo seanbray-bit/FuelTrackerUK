@@ -82,6 +82,20 @@ struct StationListView: View {
                     .accessibilityElement(children: .contain)
                 }
 
+                // When retrying after a failure (or moving to a new area), the
+                // retained stations remain stale until a successful response.
+                if viewModel.isLoading && !viewModel.stations.isEmpty {
+                    Label(
+                        "Updating nearby stations — showing previous locations until the search finishes.",
+                        systemImage: "arrow.clockwise"
+                    )
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+
                 // Station list
                 if viewModel.isLoading && viewModel.stations.isEmpty {
                     Spacer()
@@ -255,13 +269,6 @@ struct StationListView: View {
             .onAppear {
                 if locationManager.authorizationStatus == .notDetermined {
                     locationManager.requestPermission()
-                }
-            }
-            .onChange(of: locationManager.userLocation) { _, newLocation in
-                if let location = newLocation, viewModel.stations.isEmpty {
-                    Task {
-                        await viewModel.fetchStations(near: location)
-                    }
                 }
             }
         }
