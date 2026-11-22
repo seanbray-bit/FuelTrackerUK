@@ -22,9 +22,15 @@ final class FuelViewModel: ObservableObject {
     private(set) var lastRequestedSearchLocation: CLLocation?
     static let relocationRefreshDistanceMetres: CLLocationDistance = 2_000
 
-    func needsRefresh(for location: CLLocation) -> Bool {
-        guard let previous = lastRequestedSearchLocation else { return true }
-        return location.distance(from: previous) >= Self.relocationRefreshDistanceMetres
+    // Reserve the search centre synchronously before a Task is scheduled:
+    // two GPS callbacks arriving in one UI cycle should not queue duplicate lookups.
+    func reserveLocationRefreshIfNeeded(for location: CLLocation) -> Bool {
+        if let previous = lastRequestedSearchLocation,
+           location.distance(from: previous) < Self.relocationRefreshDistanceMetres {
+            return false
+        }
+        lastRequestedSearchLocation = location
+        return true
     }
 
     init(
