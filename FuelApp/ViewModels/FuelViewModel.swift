@@ -17,6 +17,15 @@ final class FuelViewModel: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     // An older overlapping lookup must never replace the latest location's result.
     private var latestRequestID = UUID()
+    // Compare GPS updates with the centre of the most recently attempted lookup,
+    // including failed/in-flight requests, so tiny GPS changes don't flood Overpass.
+    private(set) var lastRequestedSearchLocation: CLLocation?
+    static let relocationRefreshDistanceMetres: CLLocationDistance = 2_000
+
+    func needsRefresh(for location: CLLocation) -> Bool {
+        guard let previous = lastRequestedSearchLocation else { return true }
+        return location.distance(from: previous) >= Self.relocationRefreshDistanceMetres
+    }
 
     init(
         stationLookup: @escaping (CLLocation, Double) async throws -> [FuelStation] = { location, radius in
@@ -70,6 +79,7 @@ final class FuelViewModel: ObservableObject {
     func fetchStations(near location: CLLocation) async {
         // A stopped auto-refresh must not start an extra lookup.
         guard !Task.isCancelled else { return }
+        lastRequestedSearchLocation = location
 
         // Calls may overlap when a location change, manual refresh and timer coincide.
         // Snapshot the radius and only publish results from the newest request.
