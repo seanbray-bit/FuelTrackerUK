@@ -62,12 +62,46 @@ struct StationMapView: View {
                     MapCompass()
                     MapScaleView()
                 }
-                Picker("Fuel Type", selection: $viewModel.selectedFuelType) {
-                    ForEach(FuelType.allCases) { type in
-                        Text(type.shortName).tag(type)
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("Fuel Type", selection: $viewModel.selectedFuelType) {
+                        ForEach(FuelType.allCases) { type in
+                            Text(type.shortName).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    // Map pins from a previous area must not appear current during a lookup.
+                    if viewModel.isLoading && !viewModel.stations.isEmpty {
+                        Label(
+                            "Updating nearby stations — showing previous locations until the search finishes.",
+                            systemImage: "arrow.clockwise"
+                        )
+                        .font(.footnote)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    if let error = viewModel.errorMessage, !viewModel.stations.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Station update failed", systemImage: "exclamationmark.triangle.fill")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Showing previously loaded station locations. \(error)")
+                                .font(.footnote)
+                            Button("Retry station update") {
+                                if let location = locationManager.userLocation {
+                                    Task { await viewModel.fetchStations(near: location) }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityHint("Tries to load the latest nearby station locations.")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                        .accessibilityElement(children: .contain)
                     }
                 }
-                .pickerStyle(.segmented)
                 .padding(.horizontal)
                 .padding(.top, 8)
             }

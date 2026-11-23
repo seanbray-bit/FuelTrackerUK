@@ -31,14 +31,16 @@ struct ContentView: View {
         .onAppear {
             viewModel.startAutoRefresh(locationManager: locationManager)
             // Covers a location fix that was already available before this view appeared.
-            if let location = locationManager.userLocation, viewModel.reserveLocationRefreshIfNeeded(for: location) {
-                Task { await viewModel.fetchStations(near: location) }
+            if let location = locationManager.userLocation,
+               let reservationID = viewModel.reserveLocationRefreshIfNeeded(for: location) {
+                Task { await viewModel.fetchStations(near: location, locationReservationID: reservationID) }
             }
         }
         // Keep relocation refresh at the tab root so it also works while Map is visible.
         .onChange(of: locationManager.userLocation) { _, newLocation in
-            guard let location = newLocation, viewModel.reserveLocationRefreshIfNeeded(for: location) else { return }
-            Task { await viewModel.fetchStations(near: location) }
+            guard let location = newLocation,
+                  let reservationID = viewModel.reserveLocationRefreshIfNeeded(for: location) else { return }
+            Task { await viewModel.fetchStations(near: location, locationReservationID: reservationID) }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }

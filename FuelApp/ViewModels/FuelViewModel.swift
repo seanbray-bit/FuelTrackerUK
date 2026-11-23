@@ -17,6 +17,8 @@ final class FuelViewModel: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     // An older overlapping lookup must never replace the latest location's result.
     private var latestRequestID = UUID()
+    // Identifies the most recent LOCATION EVENT, not the order queued Tasks start.
+    private var latestLocationReservationID: UUID?
     // Compare GPS updates with the centre of the most recently attempted lookup,
     // including failed/in-flight requests, so tiny GPS changes don't flood Overpass.
     private(set) var lastRequestedSearchLocation: CLLocation?
@@ -24,13 +26,17 @@ final class FuelViewModel: ObservableObject {
 
     // Reserve the search centre synchronously before a Task is scheduled:
     // two GPS callbacks arriving in one UI cycle should not queue duplicate lookups.
-    func reserveLocationRefreshIfNeeded(for location: CLLocation) -> Bool {
+    func reserveLocationRefreshIfNeeded(for location: CLLocation) -> UUID? {
         if let previous = lastRequestedSearchLocation,
            location.distance(from: previous) < Self.relocationRefreshDistanceMetres {
-            return false
+            return nil
         }
+        let reservationID = UUID()
+        latestLocationReservationID = reservationID
         lastRequestedSearchLocation = location
-        return true
+        // Invalidate a running lookup immediately; the newest Task might start later.
+        latestRequestID = UUID()
+        return reservationID
     }
 
     init(
@@ -82,9 +88,15 @@ final class FuelViewModel: ObservableObject {
 
     // MARK: - Fetch stations
 
-    func fetchStations(near location: CLLocation) async {
-        // A stopped auto-refresh must not start an extra lookup.
+    func fetchStations(near location: CLLocation, locationReservationID: UUID? = nil) async {
+        // Reject an older queued location event BEFORE it can change state.
         guard !Task.isCancelled else { return }
+        if let locationReservationID {
+            guard locationReservationID == latestLocationReservationID else { return }
+        } else {
+            // Explicit/manual/timer refreshes take precedence over pending auto events.
+            latestLocationReservationID = nil
+        }
         lastRequestedSearchLocation = location
 
         // Calls may overlap when a location change, manual refresh and timer coincide.
