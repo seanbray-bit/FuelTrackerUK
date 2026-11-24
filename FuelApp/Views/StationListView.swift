@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct StationListView: View {
     @ObservedObject var viewModel: FuelViewModel
@@ -63,7 +64,7 @@ struct StationListView: View {
 
                 // A failed update must be visible even when earlier station locations
                 // remain on screen; otherwise users could mistake them for fresh data.
-                if let error = viewModel.errorMessage, !viewModel.stations.isEmpty {
+                if locationManager.lookupLocation != nil, let error = viewModel.errorMessage, !viewModel.stations.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Station update failed", systemImage: "exclamationmark.triangle.fill")
                             .font(.subheadline.weight(.semibold))
@@ -97,7 +98,12 @@ struct StationListView: View {
                 }
 
                 // Station list
-                if viewModel.isLoading && viewModel.stations.isEmpty {
+                if locationManager.lookupLocation == nil {
+                    Spacer()
+                    LocationLookupStatusView(locationManager: locationManager)
+                        .padding()
+                    Spacer()
+                } else if viewModel.isLoading && viewModel.stations.isEmpty {
                     Spacer()
                     ProgressView("Finding cheapest fuel near you...")
                     Spacer()
@@ -117,22 +123,6 @@ struct StationListView: View {
                     }
                     .padding()
                     Spacer()
-                } else if locationManager.authorizationStatus == .notDetermined {
-                    Spacer()
-                    VStack(spacing: 16) {
-                        Image(systemName: "location.circle")
-                            .font(.system(size: 64))
-                            .foregroundColor(.blue)
-                        Text("We need your location to find\ncheap fuel near you")
-                            .multilineTextAlignment(.center)
-                            .font(.headline)
-                        Button("Enable Location") {
-                            locationManager.requestPermission()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
-                    }
-                    Spacer()
                 } else {
                     let sorted = viewModel.sortedStations(from: locationManager.userLocation)
                     let priced = sorted.filter { $0.price(for: viewModel.selectedFuelType) != nil }
@@ -140,8 +130,13 @@ struct StationListView: View {
 
                     if sorted.isEmpty && !viewModel.isLoading {
                         Spacer()
-                        Text("No nearby fuel stations found. Try increasing your search radius.")
-                            .foregroundColor(.secondary)
+                        if viewModel.lastRefreshed == nil {
+                            Button("Search nearby stations") { Task { await refresh() } }
+                                .buttonStyle(.bordered)
+                        } else {
+                            Text("No nearby fuel stations found.")
+                                .foregroundColor(.secondary)
+                        }
                         Spacer()
                     } else {
                         List {
@@ -260,6 +255,8 @@ struct StationListView: View {
                         } label: {
                             Image(systemName: "arrow.clockwise")
                         }
+                        .accessibilityLabel("Refresh stations")
+                        .disabled(locationManager.lookupLocation == nil)
                     }
                 }
             }
@@ -275,7 +272,45 @@ struct StationListView: View {
     }
 
     private func refresh() async {
-        guard let location = locationManager.userLocation else { return }
-        await viewModel.fetchStations(near: location)
+        guard let location = locationManager.lookupLocation else { return }
+        await viewModel.fetchStations(near: location, locationManager: locationManager)
+    }
+}
+
+// Shared location guidance for both tabs.
+struct LocationLookupStatusView: View {
+    @ObservedObject var locationManager: LocationManager
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch locationManager.authorizationStatus {
+            case .notDetermined:
+                Text("Enable location to find nearby fuel stations.")
+                Button("Enable Location") { locationManager.requestPermission() }
+                    .buttonStyle(.borderedProminent)
+            case .denied:
+                Text("Location access is off. Allow location in Settings to find nearby stations.")
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+                .buttonStyle(.bordered)
+            case .restricted:
+                Text("Location access is restricted on this device.")
+            case .authorizedAlways, .authorizedWhenInUse:
+                if let error = locationManager.locationError {
+                    Text(error)
+                    Button("Retry location") { locationManager.retryLocation() }
+                        .buttonStyle(.bordered)
+                } else {
+                    ProgressView("Waiting for your location…")
+                }
+            @unknown default:
+                Text("Location access is unavailable.")
+            }
+        }
+        .font(.subheadline)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
     }
 }
