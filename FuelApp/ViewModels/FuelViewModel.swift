@@ -15,6 +15,7 @@ final class FuelViewModel: ObservableObject {
     private let stationLookup: (CLLocation, Double) async throws -> [FuelStation]
     private let sleepFor: (Duration) async throws -> Void
     private var refreshTask: Task<Void, Never>?
+    private var activeLookup: Task<[FuelStation], Error>?
     // An older overlapping lookup must never replace the latest location's result.
     private var latestRequestID = UUID()
     // Identifies the most recent LOCATION EVENT, not the order queued Tasks start.
@@ -36,6 +37,7 @@ final class FuelViewModel: ObservableObject {
         lastRequestedSearchLocation = location
         // Invalidate a running lookup immediately; the newest Task might start later.
         latestRequestID = UUID()
+        activeLookup?.cancel()
         return reservationID
     }
 
@@ -88,33 +90,84 @@ final class FuelViewModel: ObservableObject {
 
     // MARK: - Fetch stations
 
-    func fetchStations(near location: CLLocation, locationReservationID: UUID? = nil) async {
+    func invalidateLocationSearch() {
+        latestRequestID = UUID()
+        latestLocationReservationID = nil
+        lastRequestedSearchLocation = nil
+        activeLookup?.cancel()
+        activeLookup = nil
+        stations = []
+        lastRefreshed = nil
+        errorMessage = nil
+        isLoading = false
+    }
+
+    // Production callers provide the manager; nil retains the injected lookup test seam.
+    func fetchStations(near location: CLLocation, locationReservationID: UUID? = nil, locationManager: LocationManager? = nil) async {
+        let searchLocation: CLLocation
+        if let locationManager {
+            guard let currentLocation = locationManager.lookupLocation else { return }
+            // Manual tasks may have been queued before permission changed.
+            searchLocation = locationReservationID == nil ? currentLocation : location
+        } else {
+            searchLocation = location
+        }
+        let permissionEpoch = locationManager?.permissionEpoch
         // Reject an older queued location event BEFORE it can change state.
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else {
+            if let locationReservationID, locationReservationID == latestLocationReservationID {
+                latestLocationReservationID = nil
+                lastRequestedSearchLocation = nil
+                activeLookup = nil
+                isLoading = false
+            }
+            return
+        }
         if let locationReservationID {
             guard locationReservationID == latestLocationReservationID else { return }
         } else {
             // Explicit/manual/timer refreshes take precedence over pending auto events.
             latestLocationReservationID = nil
         }
-        lastRequestedSearchLocation = location
+        lastRequestedSearchLocation = searchLocation
 
         // Calls may overlap when a location change, manual refresh and timer coincide.
         // Snapshot the radius and only publish results from the newest request.
         let requestID = UUID()
         latestRequestID = requestID
         let radiusMetres = searchRadiusMetres
+        activeLookup?.cancel()
         isLoading = true
         errorMessage = nil
         // A cancelled latest request still needs to release the spinner.
         // A superseded request must not hide the current request's spinner.
         defer {
-            if latestRequestID == requestID { isLoading = false }
+            if latestRequestID == requestID {
+                isLoading = false
+                activeLookup = nil
+            }
         }
 
         do {
-            let results = try await stationLookup(location, radiusMetres)
+            let lookup = Task { [stationLookup] in
+                try Task.checkCancellation()
+                if let locationManager {
+                    guard locationManager.lookupLocation != nil,
+                          locationManager.permissionEpoch == permissionEpoch else { throw CancellationError() }
+                }
+                return try await stationLookup(searchLocation, radiusMetres)
+            }
+            activeLookup = lookup
+            let results = try await withTaskCancellationHandler {
+                try await lookup.value
+            } onCancel: {
+                lookup.cancel()
+            }
             guard latestRequestID == requestID, !Task.isCancelled else { return }
+            if let locationManager {
+                guard locationManager.lookupLocation != nil,
+                      locationManager.permissionEpoch == permissionEpoch else { return }
+            }
 
             // A successful empty response is still the latest station list.
             // Clear results from the previous location/radius rather than
@@ -122,13 +175,14 @@ final class FuelViewModel: ObservableObject {
             stations = results
             lastRefreshed = Date()
 
-            if results.isEmpty {
-                errorMessage = "No fuel stations found nearby. Try increasing your search radius."
-            }
         } catch is CancellationError {
             // Expected cancellation is not a user-visible network failure.
         } catch {
             guard latestRequestID == requestID, !Task.isCancelled else { return }
+            if let locationManager {
+                guard locationManager.lookupLocation != nil,
+                      locationManager.permissionEpoch == permissionEpoch else { return }
+            }
             errorMessage = error.localizedDescription
         }
     }
@@ -146,8 +200,8 @@ final class FuelViewModel: ObservableObject {
                     break
                 }
                 guard !Task.isCancelled else { break }
-                if let location = locationManager.userLocation {
-                    await fetchStations(near: location)
+                if let location = locationManager.lookupLocation {
+                    await fetchStations(near: location, locationManager: locationManager)
                 }
             }
         }

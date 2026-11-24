@@ -16,7 +16,7 @@ struct StationMapView: View {
             ZStack(alignment: .top) {
                 // Native Map selection could bypass the paywall's Button handler.
                 Map(position: $cameraPosition) {
-                    UserAnnotation()
+                    if locationManager.canUseLocation { UserAnnotation() }
                     let sorted = viewModel.sortedStations(from: locationManager.userLocation)
                     ForEach(Array(sorted.enumerated()), id: \.element.id) { index, station in
                         let price = station.price(for: viewModel.selectedFuelType)
@@ -71,7 +71,15 @@ struct StationMapView: View {
                     .pickerStyle(.segmented)
 
                     // Map pins from a previous area must not appear current during a lookup.
-                    if viewModel.isLoading && !viewModel.stations.isEmpty {
+                    if locationManager.lookupLocation == nil {
+                        LocationLookupStatusView(locationManager: locationManager)
+                            .padding(10)
+                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                    } else if viewModel.isLoading && viewModel.stations.isEmpty {
+                        ProgressView("Finding nearby stations…")
+                            .padding(10)
+                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
+                    } else if viewModel.isLoading {
                         Label(
                             "Updating nearby stations — showing previous locations until the search finishes.",
                             systemImage: "arrow.clockwise"
@@ -82,15 +90,15 @@ struct StationMapView: View {
                         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
                     }
 
-                    if let error = viewModel.errorMessage, !viewModel.stations.isEmpty {
+                    if locationManager.lookupLocation != nil, let error = viewModel.errorMessage {
                         VStack(alignment: .leading, spacing: 8) {
                             Label("Station update failed", systemImage: "exclamationmark.triangle.fill")
                                 .font(.subheadline.weight(.semibold))
-                            Text("Showing previously loaded station locations. \(error)")
+                            Text(viewModel.stations.isEmpty ? error : "Showing previously loaded station locations. \(error)")
                                 .font(.footnote)
                             Button("Retry station update") {
-                                if let location = locationManager.userLocation {
-                                    Task { await viewModel.fetchStations(near: location) }
+                                if let location = locationManager.lookupLocation {
+                                    Task { await viewModel.fetchStations(near: location, locationManager: locationManager) }
                                 }
                             }
                             .buttonStyle(.bordered)
@@ -100,6 +108,21 @@ struct StationMapView: View {
                         .padding(10)
                         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
                         .accessibilityElement(children: .contain)
+                    } else if locationManager.lookupLocation != nil, !viewModel.isLoading, viewModel.stations.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if viewModel.lastRefreshed != nil {
+                                Text("No nearby fuel stations found.")
+                            }
+                            Button("Search nearby stations") {
+                                if let location = locationManager.lookupLocation {
+                                    Task { await viewModel.fetchStations(near: location, locationManager: locationManager) }
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .font(.footnote)
+                        .padding(10)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 8))
                     }
                 }
                 .padding(.horizontal)

@@ -31,19 +31,25 @@ struct ContentView: View {
         .onAppear {
             viewModel.startAutoRefresh(locationManager: locationManager)
             // Covers a location fix that was already available before this view appeared.
-            if let location = locationManager.userLocation,
+            if let location = locationManager.lookupLocation,
                let reservationID = viewModel.reserveLocationRefreshIfNeeded(for: location) {
-                Task { await viewModel.fetchStations(near: location, locationReservationID: reservationID) }
+                Task { await viewModel.fetchStations(near: location, locationReservationID: reservationID, locationManager: locationManager) }
             }
         }
         // Keep relocation refresh at the tab root so it also works while Map is visible.
         .onChange(of: locationManager.userLocation) { _, newLocation in
-            guard let location = newLocation,
+            guard locationManager.canUseLocation, let location = newLocation,
                   let reservationID = viewModel.reserveLocationRefreshIfNeeded(for: location) else { return }
-            Task { await viewModel.fetchStations(near: location, locationReservationID: reservationID) }
+            Task { await viewModel.fetchStations(near: location, locationReservationID: reservationID, locationManager: locationManager) }
+        }
+        .onReceive(locationManager.$authorizationStatus) { status in
+            if !LocationManager.isAuthorized(status) {
+                viewModel.invalidateLocationSearch()
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
+            locationManager.synchronizeAuthorization()
             // Reconcile verified StoreKit entitlements on foreground entry;
             // Transaction.updates alone cannot be relied upon for expiry/revocation.
             // Preserve StoreKit's current-entitlement treatment of grace periods.
