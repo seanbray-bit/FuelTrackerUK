@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import CoreFoundation
 
 /// Locates UK fuel forecourts from OpenStreetMap.
 /// Forecourt prices require a verified provider site ID and provenance.
@@ -45,17 +46,32 @@ actor FuelAPIService {
             throw FuelAPIError.serverError
         }
 
-        return try parseOverpassResponse(data: data)
+        return try Self.parseOverpassResponse(data: data)
     }
 
-    private func parseOverpassResponse(data: Data) throws -> [FuelStation] {
+    // Internal pure parser for deterministic fixtures; no network needed.
+    static func parseOverpassResponse(data: Data) throws -> [FuelStation] {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let elements = json["elements"] as? [[String: Any]] else {
             throw FuelAPIError.parsingError
         }
 
+        // Overpass may return HTTP 200 with partial elements and a runtime remark.
+        // Fail closed rather than publish incomplete results as a successful search.
+        guard json["remark"] == nil, json["error"] == nil else {
+            throw FuelAPIError.incompleteResponse
+        }
+
         var stations: [FuelStation] = []
+        var seenIDs = Set<String>()
         let now = Date()
+
+        func coordinateValue(_ value: Any?) -> Double? {
+            guard let number = value as? NSNumber,
+                  CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+            let result = number.doubleValue
+            return result.isFinite ? result : nil
+        }
 
         for element in elements {
             let tags = element["tags"] as? [String: String] ?? [:]
@@ -65,21 +81,29 @@ actor FuelAPIService {
             var lon: Double?
 
             if let center = element["center"] as? [String: Any] {
-                lat = center["lat"] as? Double
-                lon = center["lon"] as? Double
+                lat = coordinateValue(center["lat"])
+                lon = coordinateValue(center["lon"])
             } else {
-                lat = element["lat"] as? Double
-                lon = element["lon"] as? Double
+                lat = coordinateValue(element["lat"])
+                lon = coordinateValue(element["lon"])
             }
 
-            guard let latitude = lat, let longitude = lon else { continue }
+            guard let latitude = lat, let longitude = lon,
+                  CLLocationCoordinate2DIsValid(CLLocationCoordinate2D(latitude: latitude, longitude: longitude)) else {
+                throw FuelAPIError.incompleteResponse
+            }
 
             // OSM node and way numbers occupy independent ID namespaces.
             // Reject malformed identity instead of generating unstable IDs.
             guard let elementType = element["type"] as? String,
                   (elementType == "node" || elementType == "way"),
-                  let numericID = element["id"] as? NSNumber else { continue }
-            let id = "osm:\(elementType):\(numericID.stringValue)"
+                  let numericID = element["id"] as? NSNumber,
+                  CFGetTypeID(numericID) != CFBooleanGetTypeID(),
+                  let positiveID = Int64(numericID.stringValue), positiveID > 0 else {
+                throw FuelAPIError.incompleteResponse
+            }
+            let id = "osm:\(elementType):\(positiveID)"
+            guard seenIDs.insert(id).inserted else { continue }
             let name = tags["name"] ?? tags["brand"] ?? "Fuel Station"
             let brand = tags["brand"] ?? tags["operator"] ?? "Independent"
 
@@ -115,6 +139,7 @@ enum FuelAPIError: LocalizedError {
     case invalidURL
     case serverError
     case parsingError
+    case incompleteResponse
     case noData
 
     var errorDescription: String? {
@@ -122,6 +147,7 @@ enum FuelAPIError: LocalizedError {
         case .invalidURL: return "Invalid request"
         case .serverError: return "Server unavailable. Try again."
         case .parsingError: return "Could not read fuel data"
+        case .incompleteResponse: return "Station data was incomplete. Please retry."
         case .noData: return "No fuel stations found nearby"
         }
     }

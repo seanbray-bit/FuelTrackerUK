@@ -13,6 +13,9 @@ final class SubscriptionManager: ObservableObject {
     // Product ID — set this in App Store Connect
     static let productID = "uk.fuelapp.monthly"
     static let price = "99p/month"
+    // Release gate: no verified forecourt price/stock provider is integrated.
+    // Re-enable only after data, localized StoreKit pricing and claims are verified.
+    static let newPurchasesAvailable = false
 
     private var updateTask: Task<Void, Never>?
     // Only the most recently started check may publish an entitlement result.
@@ -34,6 +37,11 @@ final class SubscriptionManager: ObservableObject {
     // MARK: - Purchase
 
     func purchase() async {
+        guard Self.newPurchasesAvailable else {
+            errorMessage = "New subscriptions are unavailable while verified fuel prices are not available."
+            return
+        }
+        guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
 

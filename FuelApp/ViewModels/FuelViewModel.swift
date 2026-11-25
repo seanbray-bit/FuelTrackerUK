@@ -23,6 +23,8 @@ final class FuelViewModel: ObservableObject {
     // Compare GPS updates with the centre of the most recently attempted lookup,
     // including failed/in-flight requests, so tiny GPS changes don't flood Overpass.
     private(set) var lastRequestedSearchLocation: CLLocation?
+    // Only a completed successful response (including zero stations) advances this centre.
+    private(set) var lastSuccessfulSearchLocation: CLLocation?
     static let relocationRefreshDistanceMetres: CLLocationDistance = 2_000
 
     // Reserve the search centre synchronously before a Task is scheduled:
@@ -38,6 +40,9 @@ final class FuelViewModel: ObservableObject {
         // Invalidate a running lookup immediately; the newest Task might start later.
         latestRequestID = UUID()
         activeLookup?.cancel()
+        // Mark the old results stale immediately, even before the queued Task starts.
+        isLoading = true
+        errorMessage = nil
         return reservationID
     }
 
@@ -94,6 +99,7 @@ final class FuelViewModel: ObservableObject {
         latestRequestID = UUID()
         latestLocationReservationID = nil
         lastRequestedSearchLocation = nil
+        lastSuccessfulSearchLocation = nil
         activeLookup?.cancel()
         activeLookup = nil
         stations = []
@@ -104,9 +110,16 @@ final class FuelViewModel: ObservableObject {
 
     // Production callers provide the manager; nil retains the injected lookup test seam.
     func fetchStations(near location: CLLocation, locationReservationID: UUID? = nil, locationManager: LocationManager? = nil) async {
+        // Reject superseded reservations before any state changes.
+        if let locationReservationID {
+            guard locationReservationID == latestLocationReservationID else { return }
+        }
         let searchLocation: CLLocation
         if let locationManager {
-            guard let currentLocation = locationManager.lookupLocation else { return }
+            guard let currentLocation = locationManager.lookupLocation else {
+                if locationReservationID != nil { invalidateLocationSearch() }
+                return
+            }
             // Manual tasks may have been queued before permission changed.
             searchLocation = locationReservationID == nil ? currentLocation : location
         } else {
@@ -117,9 +130,11 @@ final class FuelViewModel: ObservableObject {
         guard !Task.isCancelled else {
             if let locationReservationID, locationReservationID == latestLocationReservationID {
                 latestLocationReservationID = nil
-                lastRequestedSearchLocation = nil
                 activeLookup = nil
                 isLoading = false
+                // Keep the attempted centre to prevent repeated automatic retries
+                // from GPS jitter; the explicit retry and timer remain available.
+                errorMessage = "The latest station search was interrupted. Retry to load current results."
             }
             return
         }
@@ -139,12 +154,21 @@ final class FuelViewModel: ObservableObject {
         activeLookup?.cancel()
         isLoading = true
         errorMessage = nil
-        // A cancelled latest request still needs to release the spinner.
-        // A superseded request must not hide the current request's spinner.
+        // Only the current request may complete or mark its results incomplete.
+        // A cancelled latest request must not look like a successful search.
+        var completed = false
         defer {
             if latestRequestID == requestID {
-                isLoading = false
-                activeLookup = nil
+                if let locationManager,
+                   locationManager.lookupLocation == nil || locationManager.permissionEpoch != permissionEpoch {
+                    invalidateLocationSearch()
+                } else {
+                    if !completed {
+                        errorMessage = "The latest station search was interrupted. Retry to load current results."
+                    }
+                    isLoading = false
+                    activeLookup = nil
+                }
             }
         }
 
@@ -173,10 +197,14 @@ final class FuelViewModel: ObservableObject {
             // Clear results from the previous location/radius rather than
             // displaying stations that are no longer in range.
             stations = results
+            lastSuccessfulSearchLocation = searchLocation
             lastRefreshed = Date()
+            completed = true
 
         } catch is CancellationError {
-            // Expected cancellation is not a user-visible network failure.
+            // The defer marks only a still-current request as interrupted.
+        } catch let error as URLError where error.code == .cancelled {
+            // URLSession can express cancellation as URLError.cancelled.
         } catch {
             guard latestRequestID == requestID, !Task.isCancelled else { return }
             if let locationManager {
@@ -184,6 +212,7 @@ final class FuelViewModel: ObservableObject {
                       locationManager.permissionEpoch == permissionEpoch else { return }
             }
             errorMessage = error.localizedDescription
+            completed = true
         }
     }
 

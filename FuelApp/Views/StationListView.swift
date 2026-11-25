@@ -66,7 +66,7 @@ struct StationListView: View {
                 // remain on screen; otherwise users could mistake them for fresh data.
                 if locationManager.lookupLocation != nil, let error = viewModel.errorMessage, !viewModel.stations.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Station update failed", systemImage: "exclamationmark.triangle.fill")
+                        Label("Station update incomplete", systemImage: "exclamationmark.triangle.fill")
                             .font(.subheadline.weight(.semibold))
                         Text("Showing previously loaded station locations. \(error)")
                             .font(.footnote)
@@ -105,7 +105,7 @@ struct StationListView: View {
                     Spacer()
                 } else if viewModel.isLoading && viewModel.stations.isEmpty {
                     Spacer()
-                    ProgressView("Finding cheapest fuel near you...")
+                    ProgressView("Finding nearby fuel stations…")
                     Spacer()
                 } else if let error = viewModel.errorMessage, viewModel.stations.isEmpty {
                     Spacer()

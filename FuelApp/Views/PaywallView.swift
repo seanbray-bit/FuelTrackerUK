@@ -6,98 +6,50 @@ struct PaywallView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
+            ScrollView {
+                VStack(spacing: 24) {
+                    Image(systemName: "fuelpump.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundStyle(.green)
+                        .accessibilityHidden(true)
 
-                // Icon
-                Image(systemName: "fuelpump.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(.green)
-
-                // Title
-                VStack(spacing: 8) {
-                    Text("Find the Cheapest Fuel")
+                    Text("Subscriptions unavailable")
                         .font(.title.bold())
+                        .multilineTextAlignment(.center)
 
-                    Text("Save money on every fill-up")
+                    Text("You can browse forecourt locations. Verified pump prices and stock information are not currently available, so new subscriptions are paused.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    Text("Already subscribed? You can restore an existing purchase or manage your subscription in Settings.")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+                        .multilineTextAlignment(.center)
 
-                // Features
-                VStack(alignment: .leading, spacing: 16) {
-                    FeatureRow(icon: "1.circle.fill", text: "See ALL stations ranked cheapest first")
-                    FeatureRow(icon: "clock.fill", text: "Real-time price updates throughout the day")
-                    FeatureRow(icon: "checkmark.circle.fill", text: "Stock availability so you don't waste a trip")
-                    FeatureRow(icon: "map.fill", text: "Map view with directions to cheapest station")
-                    FeatureRow(icon: "bell.fill", text: "Price drop alerts (coming soon)")
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(16)
-
-                Spacer()
-
-                // Price
-                VStack(spacing: 4) {
-                    Text("Just \(SubscriptionManager.price)")
-                        .font(.title2.bold())
-                    Text("Less than a litre of fuel")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                // Subscribe button
-                Button {
-                    Task {
-                        await subscriptionManager.purchase()
-                        if subscriptionManager.canRevealPremium {
-                            dismiss()
+                    Button("Restore Purchase") {
+                        Task {
+                            await subscriptionManager.restore()
+                            if subscriptionManager.canRevealPremium {
+                                dismiss()
+                            }
                         }
                     }
-                } label: {
+                    .buttonStyle(.borderedProminent)
+                    .disabled(subscriptionManager.isLoading)
+
                     if subscriptionManager.isLoading {
-                        ProgressView()
-                            .tint(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    } else {
-                        Text("Subscribe for \(SubscriptionManager.price)")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
+                        ProgressView("Checking subscription…")
+                    }
+
+                    if let error = subscriptionManager.errorMessage {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
                     }
                 }
-                .background(Color.green)
-                .foregroundColor(.white)
-                .cornerRadius(14)
-                .disabled(subscriptionManager.isLoading)
-
-                // Restore
-                Button("Restore Purchase") {
-                    Task {
-                        await subscriptionManager.restore()
-                        if subscriptionManager.canRevealPremium {
-                            dismiss()
-                        }
-                    }
-                }
-                .font(.footnote)
-                .foregroundColor(.secondary)
-
-                if let error = subscriptionManager.errorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-
-                // Legal
-                Text("Auto-renewing subscription. Cancel anytime in Settings.")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding()
             }
-            .padding()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Not Now") {
