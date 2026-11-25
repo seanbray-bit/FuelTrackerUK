@@ -92,7 +92,7 @@ struct StationMapView: View {
 
                     if locationManager.lookupLocation != nil, let error = viewModel.errorMessage {
                         VStack(alignment: .leading, spacing: 8) {
-                            Label("Station update failed", systemImage: "exclamationmark.triangle.fill")
+                            Label("Station update incomplete", systemImage: "exclamationmark.triangle.fill")
                                 .font(.subheadline.weight(.semibold))
                             Text(viewModel.stations.isEmpty ? error : "Showing previously loaded station locations. \(error)")
                                 .font(.footnote)
