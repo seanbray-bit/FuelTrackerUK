@@ -53,7 +53,7 @@ struct StationMapView: View {
                                 ? "\(station.name), reported price locked"
                                 : "\(station.name), \(price.map { "reported \($0.formattedPrice)" } ?? "price unavailable")"
                             )
-                            .accessibilityHint(unlocked ? "Opens station details" : "Opens subscription options")
+                            .accessibilityHint(unlocked ? "Opens station details" : "Opens information about restoring an existing subscription")
                         }
                     }
                 }
@@ -167,7 +167,15 @@ struct StationDetailDestination: View {
 
     var body: some View {
         let sorted = viewModel.sortedStations(from: locationManager.userLocation)
-        if let index = sorted.firstIndex(where: { $0.id == stationID }) {
+        if locationManager.lookupLocation == nil {
+            VStack(spacing: 12) {
+                LocationLookupStatusView(locationManager: locationManager)
+                if let onDismiss {
+                    Button("Done", action: onDismiss)
+                }
+            }
+            .padding()
+        } else if let index = sorted.firstIndex(where: { $0.id == stationID }) {
             let currentStation = sorted[index]
             let pricedRank: Int? = currentStation.price(for: viewModel.selectedFuelType) == nil ? nil : index + 1
 
@@ -207,8 +215,15 @@ struct StationDetailDestination: View {
     private func currentDetail(for station: FuelStation) -> some View {
         StationDetailView(
             station: station,
-            userLocation: locationManager.userLocation,
-            visibleFuelType: subscriptionManager.canRevealPremium ? nil : viewModel.selectedFuelType
+            userLocation: locationManager.lookupLocation,
+            visibleFuelType: subscriptionManager.canRevealPremium ? nil : viewModel.selectedFuelType,
+            retainedSearchMessage: viewModel.isLoading
+                ? "Updating nearby stations — showing a previously loaded station."
+                : viewModel.errorMessage.map { "Showing a previously loaded station. \($0)" },
+            retrySearch: viewModel.isLoading ? nil : {
+                guard let location = locationManager.lookupLocation else { return }
+                Task { await viewModel.fetchStations(near: location, locationManager: locationManager) }
+            }
         )
     }
 }
