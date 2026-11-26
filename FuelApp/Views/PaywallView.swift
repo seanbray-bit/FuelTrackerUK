@@ -28,8 +28,7 @@ struct PaywallView: View {
 
                     Button("Restore Purchase") {
                         Task {
-                            await subscriptionManager.restore()
-                            if subscriptionManager.canRevealPremium {
+                            if await subscriptionManager.restore() {
                                 dismiss()
                             }
                         }
