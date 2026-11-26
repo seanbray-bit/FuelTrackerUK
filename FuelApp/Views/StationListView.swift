@@ -154,9 +154,9 @@ struct StationListView: View {
                                             Button {
                                                 showPaywall = true
                                             } label: {
-                                                Label("Reported price #\(rank) locked — unlock to view", systemImage: "lock.fill")
+                                                Label("Reported price #\(rank) locked — existing subscribers can restore", systemImage: "lock.fill")
                                             }
-                                            .accessibilityLabel("Reported price rank \(rank) locked. Opens subscription options.")
+                                            .accessibilityLabel("Reported price rank \(rank) locked. Opens information about restoring an existing subscription.")
                                             .tint(.primary)
                                         } else {
                                             NavigationLink {
@@ -210,7 +210,7 @@ struct StationListView: View {
                                     } label: {
                                         HStack {
                                             Image(systemName: "lock.fill")
-                                            Text("Unlock all reported prices for just \(SubscriptionManager.price)")
+                                            Text("New subscriptions paused — restore an existing subscription")
                                                 .font(.system(size: 14, weight: .medium))
                                         }
                                         .frame(maxWidth: .infinity)

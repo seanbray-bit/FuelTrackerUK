@@ -78,11 +78,37 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Restore
 
-    func restore() async {
+    // A successful sync and a verified entitlement are both required to
+    // dismiss the restore screen. A failed sync must not revoke an existing
+    // entitlement merely because the account prompt or network failed.
+    @discardableResult
+    func restore() async -> Bool {
+        guard !isLoading else { return false }
         isLoading = true
-        try? await AppStore.sync()
-        await checkSubscriptionStatus()
-        isLoading = false
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            try await AppStore.sync()
+            await checkSubscriptionStatus()
+            guard !Task.isCancelled else {
+                errorMessage = "Restore cancelled. You can try again."
+                return false
+            }
+            if canRevealPremium { return true }
+            errorMessage = isRevalidating
+                ? "Subscription verification is still in progress. Try again shortly."
+                : "No active subscription was found for this Apple Account."
+        } catch StoreKitError.userCancelled {
+            errorMessage = "Restore cancelled. You can try again."
+            await checkSubscriptionStatus()
+        } catch is CancellationError {
+            errorMessage = "Restore cancelled. You can try again."
+        } catch {
+            errorMessage = "Unable to restore purchases. Check your connection and Apple Account, then try again."
+            await checkSubscriptionStatus()
+        }
+        return false
     }
 
     // MARK: - Check status

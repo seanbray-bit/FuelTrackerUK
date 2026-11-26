@@ -76,8 +76,20 @@ extension LocationManager: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
         Task { @MainActor in
-            guard self.canUseLocation, location.horizontalAccuracy >= 0 else { return }
+            guard self.canUseLocation else { return }
+            // Core Location may initially deliver a cached fix or a queued older
+            // callback. Accept approximate accuracy, but require valid coordinates
+            // and an observation no older than 120 seconds (5s future tolerance).
+            guard location.horizontalAccuracy.isFinite, location.horizontalAccuracy >= 0,
+                  CLLocationCoordinate2DIsValid(location.coordinate),
+                  (-5...120).contains(Date().timeIntervalSince(location.timestamp)) else {
+                if self.userLocation == nil {
+                    self.locationError = "Waiting for a current location. Try again."
+                }
+                return
+            }
             if let minimum = self.minimumFixTimestamp, location.timestamp < minimum { return }
+            if let current = self.userLocation, location.timestamp < current.timestamp { return }
             self.userLocation = location
             self.locationError = nil
         }

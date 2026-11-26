@@ -9,10 +9,16 @@ struct StationDetailView: View {
     // disclose other fuels' prices via this detail screen.
     let visibleFuelType: FuelType?
 
-    init(station: FuelStation, userLocation: CLLocation?, visibleFuelType: FuelType? = nil) {
+    let retainedSearchMessage: String?
+    let retrySearch: (() -> Void)?
+
+    init(station: FuelStation, userLocation: CLLocation?, visibleFuelType: FuelType? = nil,
+         retainedSearchMessage: String? = nil, retrySearch: (() -> Void)? = nil) {
         self.station = station
         self.userLocation = userLocation
         self.visibleFuelType = visibleFuelType
+        self.retainedSearchMessage = retainedSearchMessage
+        self.retrySearch = retrySearch
     }
 
     private var displayedPrices: [FuelPrice] {
@@ -23,6 +29,23 @@ struct StationDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if let retainedSearchMessage {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Station update incomplete", systemImage: "exclamationmark.triangle")
+                            .font(.headline)
+                        Text(retainedSearchMessage)
+                            .font(.subheadline)
+                        if let retrySearch {
+                            Button("Retry station update", action: retrySearch)
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityElement(children: .contain)
+                }
+
                 // Map
                 Map {
                     Marker(station.name, coordinate: station.coordinate)
@@ -108,7 +131,7 @@ struct StationDetailView: View {
                 Button {
                     openInMaps()
                 } label: {
-                    Label("Get Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                    Label(retainedSearchMessage == nil ? "Get Directions" : "Directions to previous station", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding()

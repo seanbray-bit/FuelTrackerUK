@@ -15,7 +15,7 @@ struct ContentView: View {
                 subscriptionManager: subscriptionManager
             )
             .tabItem {
-                Label("Cheapest", systemImage: "fuelpump.fill")
+                Label("Stations", systemImage: "fuelpump.fill")
             }
 
             StationMapView(
