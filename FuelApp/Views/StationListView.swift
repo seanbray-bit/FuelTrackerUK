@@ -246,6 +246,12 @@ struct StationListView: View {
             .navigationTitle("Fuel Tracker UK")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Subscription") {
+                        showPaywall = true
+                    }
+                    .accessibilityHint("Opens options to restore an existing subscription.")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if viewModel.isLoading {
                         ProgressView()
