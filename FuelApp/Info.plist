@@ -5,8 +5,8 @@
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Fuel Tracker UK needs your location to find the cheapest fuel stations near you.</string>
+	<string>Fuel Tracker UK uses your location to find nearby fuel station locations.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Fuel Tracker UK uses your location to find the cheapest fuel near you and alert you to price drops.</string>
+	<string>Fuel Tracker UK uses your location to find nearby fuel station locations.</string>
 </dict>
 </plist>
