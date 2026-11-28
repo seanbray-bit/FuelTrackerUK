@@ -1,0 +1,24 @@
+name: Unsigned iOS Simulator Build
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+jobs:
+  simulator-build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Record exact source and Xcode
+        run: |
+          git rev-parse HEAD
+          xcodebuild -version
+          xcodebuild -list -project FuelApp.xcodeproj
+      - name: Compile unsigned simulator app
+        run: |
+          set -o pipefail
+          xcodebuild -project FuelApp.xcodeproj -scheme FuelApp -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
